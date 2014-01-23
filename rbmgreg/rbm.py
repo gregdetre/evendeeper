@@ -161,7 +161,7 @@ def create_stripe_patternset():
 
 def create_mnist_patternset(npatterns=5):
     print 'Loading mnist...',
-    mnist_ds = load_mnist(test=False, nrows=npatterns)
+    mnist_ds = load_mnist(filen='../rbm/minst_train.csv', nrows=npatterns)
     assert mnist_ds.X.shape[0] == npatterns
     pset = Patternset(mnist_ds.X, shape=(28,28))
     print 'done'

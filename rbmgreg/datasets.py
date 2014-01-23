@@ -6,16 +6,15 @@ class Dataset(dict):
         dict.__init__(self, kwargs)
         self.__dict__ = self
 
-def load_mnist(test=True, nrows=None):
+def load_mnist(nrows=None, filen='../rbm/mnist_train.csv'):
     """
     Reads in the MNIST dataset and returns a Dataset object which holds the data 
     along with metadata from the files specified
     """
-    filename = 'mnist_test.csv' if test else 'mnist_train.csv'
     data = []
     cols = 0
     rows = 0
-    with open(filename, 'r') as csvfile:
+    with open(filen, 'r') as csvfile:
         csvreader = csv.reader(csvfile, dialect='excel', delimiter=',');
         for line in csvreader:
             data.extend(line)
