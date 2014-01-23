@@ -11,11 +11,11 @@ def imagesc(data, dest=None, grayscale=True, vmin=None, vmax=None):
         plt.axes().get_xaxis().set_visible(False)
         plt.axes().get_yaxis().set_visible(False)
     else:
-        dest.matshow(data, cmap=cmap, vmin=vmin, vmax=vmax)
+        show = dest.matshow(data, cmap=cmap, vmin=vmin, vmax=vmax)
         dest.axes.get_xaxis().set_visible(False)
         dest.axes.get_yaxis().set_visible(False)
     plt.show()
-    return plt
+    return show
 
 def isunique(lst): return len(set(lst))==1
 

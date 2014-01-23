@@ -19,8 +19,8 @@ class RbmNetwork(Network):
         self.n_v, self.n_h = n_v, n_h
         self.lrate = lrate
         self.w = self.init_weights(n_v, n_h)
-        self.a = 0 # bias to visible
-        self.b = 0 # bias to hidden
+        self.a = np.zeros(shape=(n_v,)) # bias to visible
+        self.b = np.zeros(shape=(n_h,)) # bias to hidden
 
     def init_weights(self, n_v, n_h, high=0.01):
         # return np.random.uniform(size=(n_v, n_h), high=high)
@@ -68,6 +68,8 @@ class RbmNetwork(Network):
 
     def plot_trial(self, v_plus, v_shape=None, ttl=None):
         if v_shape is None: v_shape = (self.n_v, 1)
+        v_bias = net.a.reshape(v_shape)
+        h_bias = vec_to_arr(net.b)
         h_plus_inp, h_plus_act, h_plus_prob, \
             v_minus_inp, v_minus_act, v_minus_prob, \
             h_minus_inp, h_minus_act, h_minus_prob = self.gibbs_step(v_plus, verbose=True)
@@ -82,31 +84,39 @@ class RbmNetwork(Network):
         h_minus_act = vec_to_arr(h_minus_act)*1.
         h_minus_prob = vec_to_arr(h_minus_prob)*1.
 
-        vmax = max(map(lambda x: max(x.ravel()), [h_plus_inp, h_plus_act, h_plus_prob,
+        vmax = max(map(lambda x: max(x.ravel()), [v_bias, h_bias,
+                                                  h_plus_inp, h_plus_act, h_plus_prob,
                                                   v_minus_inp, v_minus_act, v_minus_prob,
                                                   h_minus_inp, h_minus_act, h_minus_prob]))
-        vmin = min(map(lambda x: max(x.ravel()), [h_plus_inp, h_plus_act, h_plus_prob,
+        vmin = min(map(lambda x: max(x.ravel()), [v_bias, h_bias,
+                                                  h_plus_inp, h_plus_act, h_plus_prob,
                                                   v_minus_inp, v_minus_act, v_minus_prob,
                                                   h_minus_inp, h_minus_act, h_minus_prob]))
         
         # fig = plt.figure(figsize=(6,9))
+        fig = plt.gcf()
         plt.clf()
         if ttl: fig.suptitle(ttl)
-        gs = gridspec.GridSpec(15,2)
+        gs = gridspec.GridSpec(20,2)
 
         # top left downwards
-        ax = fig.add_subplot(gs[  0, 0]); imagesc(h_plus_prob, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h_plus_prob')
-        ax = fig.add_subplot(gs[  1, 0]); imagesc(h_plus_act, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h_plus_act')
-        ax = fig.add_subplot(gs[  2, 0]); imagesc(h_plus_inp, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h_plus_inp')
-        ax = fig.add_subplot(gs[4:7, 0]); imagesc(v_plus, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('v_plus')
+        ax = fig.add_subplot(gs[    0,0]); imagesc(h_plus_prob, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h_plus_prob')
+        ax = fig.add_subplot(gs[    1,0]); imagesc(h_plus_act, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h_plus_act')
+        ax = fig.add_subplot(gs[    2,0]); imagesc(h_plus_inp, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h_plus_inp')
+        ax = fig.add_subplot(gs[    3,0]); imagesc(h_bias, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h bias')
+        ax = fig.add_subplot(gs[ 5: 8,0]); imagesc(v_plus, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('v_plus')
+        ax = fig.add_subplot(gs[17:20,0]); im = imagesc(v_bias, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('v bias');
+        fig.colorbar(im)
 
         # top right downwards
-        ax = fig.add_subplot(gs[   0, 1]); imagesc(h_minus_prob, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h_minus_prob')
-        ax = fig.add_subplot(gs[   1, 1]); imagesc(h_minus_act, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h_minus_act')
-        ax = fig.add_subplot(gs[   2, 1]); imagesc(h_minus_inp, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h_minus_inp')
-        ax = fig.add_subplot(gs[4: 7, 1]); imagesc(v_minus_prob*1, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('v_minus_prob')
-        ax = fig.add_subplot(gs[8: 11,1]); imagesc(v_minus_act*1, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('v_minus_act')
-        ax = fig.add_subplot(gs[12:15,1]); imagesc(v_minus_inp*1, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('v_minus_inp')
+        ax = fig.add_subplot(gs[    0,1]); imagesc(h_minus_prob, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h_minus_prob')
+        ax = fig.add_subplot(gs[    1,1]); imagesc(h_minus_act, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h_minus_act')
+        ax = fig.add_subplot(gs[    2,1]); imagesc(h_minus_inp, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h_minus_inp')
+        ax = fig.add_subplot(gs[    3,1]); imagesc(h_bias, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h bias')
+        ax = fig.add_subplot(gs[ 5: 8,1]); imagesc(v_minus_prob*1, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('v_minus_prob')
+        ax = fig.add_subplot(gs[ 9:12,1]); imagesc(v_minus_act*1, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('v_minus_act')
+        ax = fig.add_subplot(gs[13:16,1]); imagesc(v_minus_inp*1, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('v_minus_inp')
+        ax = fig.add_subplot(gs[17:20,1]); imagesc(v_bias, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('v bias')
 
 #         # top left downwards
 #         ax = fig.add_subplot(6,2,1); imagesc(h_plus_prob, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h_plus_prob')
