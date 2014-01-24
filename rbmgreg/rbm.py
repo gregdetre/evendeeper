@@ -31,8 +31,8 @@ class RbmNetwork(Network):
         self.fignum_biases = 5
         self.fignum_dbiases = 6
         plt.figure(figsize=(5,7), num=self.fignum_layers)
-        plt.figure(figsize=(6,4), num=self.fignum_weights)
-        plt.figure(figsize=(6,4), num=self.fignum_dweights)
+        plt.figure(figsize=(9,6), num=self.fignum_weights) # 6,4
+        plt.figure(figsize=(9,6), num=self.fignum_dweights)
         plt.figure(figsize=(3,2), num=self.fignum_errors)
         plt.figure(figsize=(3,2), num=self.fignum_biases)
         plt.figure(figsize=(3,2), num=self.fignum_dbiases)
@@ -44,9 +44,9 @@ class RbmNetwork(Network):
 
         self.pause = True
 
-    def init_weights(self, n_v, n_h, high=0.01):
-        # return np.random.uniform(size=(n_v, n_h), high=high)
-        return np.random.normal(size=(n_v, n_h)) * high
+    def init_weights(self, n_v, n_h, scale=0.01):
+        # return np.random.uniform(size=(n_v, n_h), high=scale)
+        return np.random.normal(size=(n_v, n_h), loc=0, scale=scale)
 
     def act_fn(self, x): return sigmoid(x)
 
@@ -127,18 +127,18 @@ class RbmNetwork(Network):
         if ttl: fig.suptitle(ttl)
         gs = gridspec.GridSpec(16,2)
         # top left downwards
-        ax = fig.add_subplot(gs[    0,0]); im = imagesc(h_plus_prob, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_plus_prob')
+        ax = fig.add_subplot(gs[    0,0]); im = imagesc(h_plus_state, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_plus_state')
         ax = fig.add_subplot(gs[    1,0]); im = imagesc(h_plus_act, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_plus_act')
         ax = fig.add_subplot(gs[    2,0]); im = imagesc(h_plus_inp, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_plus_inp')
         # ax = fig.add_subplot(gs[    3,0]); im = imagesc(h_bias, dest=ax, vmin=bmin, vmax=bmax); ax.set_title('h bias')
         ax = fig.add_subplot(gs[ 5: 8,0]); im = imagesc(v_plus, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_plus'); fig.colorbar(im) # , ticks=[lmin, lmax])
         # ax = fig.add_subplot(gs[17:20,0]); im = imagesc(v_bias, dest=ax, vmin=bmin, vmax=bmax); ax.set_title('v bias'); fig.colorbar(im) # , ticks=[bmin, bmax])
         # top right downwards
-        ax = fig.add_subplot(gs[    0,1]); im = imagesc(h_minus_prob, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_minus_prob')
+        ax = fig.add_subplot(gs[    0,1]); im = imagesc(h_minus_state, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_minus_state')
         ax = fig.add_subplot(gs[    1,1]); im = imagesc(h_minus_act, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_minus_act')
         ax = fig.add_subplot(gs[    2,1]); im = imagesc(h_minus_inp, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_minus_inp')
         # ax = fig.add_subplot(gs[    3,1]); im = imagesc(h_bias, dest=ax, vmin=bmin, vmax=bmax); ax.set_title('h bias')
-        ax = fig.add_subplot(gs[ 5: 8,1]); im = imagesc(v_minus_prob*1, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_minus_prob'); fig.colorbar(im) # , ticks=[lmin, lmax])
+        ax = fig.add_subplot(gs[ 5: 8,1]); im = imagesc(v_minus_state*1, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_minus_state'); fig.colorbar(im) # , ticks=[lmin, lmax])
         ax = fig.add_subplot(gs[ 9:12,1]); im = imagesc(v_minus_act*1, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_minus_act'); fig.colorbar(im) # , ticks=[lmin, lmax])
         ax = fig.add_subplot(gs[13:16,1]); im = imagesc(v_minus_inp*1, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_minus_inp'); fig.colorbar(im) # , ticks=[lmin, lmax])
         # ax = fig.add_subplot(gs[17:20,1]); im = imagesc(v_bias, dest=ax, vmin=bmin, vmax=bmax); ax.set_title('v bias'); fig.colorbar(im) # , ticks=[bmin, bmax])
@@ -169,7 +169,7 @@ class RbmNetwork(Network):
             x,y = divmod(hnum, nsubplots)
             ax = fig.add_subplot(gs[x,y])
             im = imagesc(w[:,hnum].reshape(self.v_shape), dest=ax, vmin=vmin, vmax=vmax)
-            ax.set_title('to H#%i' % hnum)
+            # ax.set_title('to H#%i' % hnum)
         # gs.tight_layout(fig) # crashes
         fig.colorbar(im)
         plt.draw()
@@ -223,10 +223,10 @@ def create_mnist_patternset(npatterns=None):
 if __name__ == "__main__":
     np.random.seed()
 
-    lrate = 0.01
+    lrate = 0.005
     wcost = 0.0002
-    nhidden = 9
-    npatterns = 100
+    nhidden = 81 # 529
+    npatterns = 1000
     train_errors = []
     train_v_minuses = []
     n_train_epochs = 1000
