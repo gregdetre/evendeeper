@@ -1,3 +1,10 @@
+# # http://stackoverflow.com/questions/1677571/matplotlib-multiple-figure-arrangement
+# import matplotlib
+# matplotlib.use('Agg') 
+# matplotlib.use('WX') 
+# matplotlib.use('QtAgg') 
+# matplotlib.use('TkAgg') 
+
 from ipdb import set_trace as pause
 from math import ceil, sqrt
 from matplotlib import pyplot as plt
@@ -37,11 +44,6 @@ class RbmNetwork(Network):
         plt.figure(figsize=(3,2), num=self.fignum_biases)
         plt.figure(figsize=(3,2), num=self.fignum_dbiases)
         
-        # http://stackoverflow.com/questions/13172007/matplotlib-plot-window-appears-on-different-desktop
-        # from pylab import get_current_fig_manager
-        # thismanager = get_current_fig_manager()
-        # thismanager.window.SetPosition((500, 0))
-
         self.pause = True
 
     def init_weights(self, n_v, n_h, scale=0.01):
@@ -86,7 +88,7 @@ class RbmNetwork(Network):
         for i in range(self.n_v):
             for j in range(self.n_h):
                 d_w[i,j] = self.lrate * \
-                    (v_plus[i]*h_plus_state[j] - v_minus_act[i]*h_minus_act[j] - 
+                    (v_plus[i]*h_plus_act[j] - v_minus_act[i]*h_minus_act[j] - 
                      wcost*self.w[i,j])
         self.w += d_w
         self.a += d_a
@@ -229,12 +231,12 @@ if __name__ == "__main__":
 
     lrate = 0.005
     wcost = 0.0002
-    nhidden = 81 # 529
+    nhidden = 100 # 529
     npatterns = 1000
     train_errors = []
     train_v_minuses = []
     n_train_epochs = 1000
-    plot_every_n = 5
+    plot_every_n = 10
 
     # pset = create_random_patternset(npatterns=npatterns)
     # pset = create_stripe_patternset()
