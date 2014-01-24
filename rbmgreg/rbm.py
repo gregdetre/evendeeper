@@ -61,21 +61,20 @@ class RbmNetwork(Network):
     def calculate_error(self, actual, desired):
         return np.mean(np.abs(actual - desired))
 
-    def gibbs_step(self, v_plus, verbose=False):
+    def gibbs_step(self, v_plus):
         h_plus_inp, h_plus_act = self.propagate_fwd(v_plus)
-        h_plus_prob = self.probsample(h_plus_act)
-        # h_plus_prob = np.round(h_plus_act)
-        v_minus_inp, v_minus_act = self.propagate_back(h_plus_prob)
-        v_minus_prob = self.probsample(v_minus_act)
-        h_minus_inp, h_minus_act = self.propagate_fwd(v_minus_prob)
-        h_minus_prob = self.probsample(h_minus_act)
-        if verbose: return \
-                h_plus_inp, h_plus_act, h_plus_prob, \
-                v_minus_inp, v_minus_act, v_minus_prob, \
-                h_minus_inp, h_minus_act, h_minus_prob
-        else: return h_plus_prob, v_minus_prob, h_minus_prob
+        h_plus_state = self.samplestates(h_plus_act)
+        v_minus_inp, v_minus_act = self.propagate_back(h_plus_state)
+        v_minus_state = self.samplestates(v_minus_act)
+        # h_minus_inp, h_minus_act = self.propagate_fwd(v_minus_state)
+        h_minus_inp, h_minus_act = self.propagate_fwd(v_minus_act)
+        h_minus_state = self.samplestates(h_minus_act)
+        return \
+            h_plus_inp, h_plus_act, h_plus_state, \
+            v_minus_inp, v_minus_act, v_minus_state, \
+            h_minus_inp, h_minus_act, h_minus_state
 
-    def probsample(self, x): return x > np.random.uniform(size=x.shape)
+    def samplestates(self, x): return x > np.random.uniform(size=x.shape)
 
     def update_weights(self, v_plus):
         h_plus, v_minus, h_minus = self.gibbs_step(v_plus)
@@ -94,17 +93,17 @@ class RbmNetwork(Network):
     def plot_layers(self, v_plus, ttl=None):
         v_bias = net.a.reshape(self.v_shape)
         h_bias = vec_to_arr(net.b)
-        h_plus_inp, h_plus_act, h_plus_prob, \
-            v_minus_inp, v_minus_act, v_minus_prob, \
-            h_minus_inp, h_minus_act, h_minus_prob = self.gibbs_step(v_plus, verbose=True)
+        h_plus_inp, h_plus_act, h_plus_state, \
+            v_minus_inp, v_minus_act, v_minus_state, \
+            h_minus_inp, h_minus_act, h_minus_state = self.gibbs_step(v_plus)
 #         lmax = max(map(max, 
-#                        [h_plus_inp, h_plus_act, h_plus_prob,
-#                         v_minus_inp, v_minus_act, v_minus_prob,
-#                         h_minus_inp, h_minus_act, h_minus_prob]))
+#                        [h_plus_inp, h_plus_act, h_plus_state,
+#                         v_minus_inp, v_minus_act, v_minus_state,
+#                         h_minus_inp, h_minus_act, h_minus_state]))
 #         lmin = min(map(min,
-#                        [h_plus_inp, h_plus_act, h_plus_prob,
-#                         v_minus_inp, v_minus_act, v_minus_prob,
-#                         h_minus_inp, h_minus_act, h_minus_prob]))
+#                        [h_plus_inp, h_plus_act, h_plus_state,
+#                         v_minus_inp, v_minus_act, v_minus_state,
+#                         h_minus_inp, h_minus_act, h_minus_state]))
 #         bmax = max(map(lambda x: max(x.ravel()), [v_bias, h_bias]))
 #         bmin = min(map(lambda x: min(x.ravel()), [v_bias, h_bias]))
         # lmin, lmax, bmin, bmax = None, None, None, None
@@ -113,13 +112,13 @@ class RbmNetwork(Network):
         v_plus = v_plus.reshape(self.v_shape)
         h_plus_inp = vec_to_arr(h_plus_inp)*1.
         h_plus_act = vec_to_arr(h_plus_act)*1.
-        h_plus_prob = vec_to_arr(h_plus_prob)*1.
+        h_plus_state = vec_to_arr(h_plus_state)*1.
         v_minus_inp = v_minus_inp.reshape(self.v_shape)
         v_minus_act = v_minus_act.reshape(self.v_shape)
-        v_minus_prob = v_minus_prob.reshape(self.v_shape)
+        v_minus_state = v_minus_state.reshape(self.v_shape)
         h_minus_inp = vec_to_arr(h_minus_inp)*1.
         h_minus_act = vec_to_arr(h_minus_act)*1.
-        h_minus_prob = vec_to_arr(h_minus_prob)*1.
+        h_minus_state = vec_to_arr(h_minus_state)*1.
 
         # fig = plt.figure(figsize=(6,9))
         # fig = plt.gcf()
