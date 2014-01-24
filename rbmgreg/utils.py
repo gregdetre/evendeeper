@@ -23,6 +23,6 @@ def sigmoid(x):
     # from peter's rbm
     return 1.0 / (1.0 + np.exp(-x))
 
-def sumsq(x): return sum(x**2)
+def sumsq(x): return np.sum(x**2, axis=1)
 
-def vec_to_arr(x): return x.reshape(1, len(x))
+def vec_to_arr(x): return x.reshape(1, x.size)

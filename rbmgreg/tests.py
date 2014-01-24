@@ -16,15 +16,17 @@ class RbmTests(BaseTestCase):
         self.net = RbmNetwork(3, 2, 0.01, 0.001)
         self.pset = create_random_patternset(shape=(1,3), npatterns=4)
 
-    def test_update_weights_vectorized(self):
-        # confirm that the vectorized version gives the same
-        # results as the forloop version
-        v_plus = self.pset.get(0)
-        d_w1, d_a1, d_b1 = self.net.update_weights_forloop(v_plus)
-        d_w2, d_a2, d_b2 = self.net.update_weights_vectorized(v_plus)
-        arr_eq_(d_w1, d_w2)
-        arr_eq_(d_a1, d_a2)
-        arr_eq_(d_b1, d_b2)
+
+class PatternTests(unittest.TestCase):
+    def setUp(self):
+        self.pset = create_random_patternset(shape=(1,5), npatterns=10)
+
+    def test_getmulti(self):
+        patterns_single = [self.pset.get(p) for p in range(5)]
+        patterns_multi = self.pset.getmulti(range(5))
+        for pattern_single, pattern_multi in zip(patterns_single, patterns_multi):
+            arr_eq_(pattern_single, pattern_multi)
+            
 
 if __name__ == '__main__':
     unittest.main()

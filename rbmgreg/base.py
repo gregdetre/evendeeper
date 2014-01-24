@@ -1,4 +1,5 @@
 import numpy as np
+from random import sample
 
 from utils import imagesc, isunique, vec_to_arr
 
@@ -13,12 +14,16 @@ class Network(object):
     def act_fn(self, x): return x # linear activation function by default, i.e. no transformation
 
     def propagate_fwd(self, v):
+        # V = (NVISIBLE X NPATTERNS)
         h_inp = np.dot(v, self.w) + self.b
         h_act = self.act_fn(h_inp)
         return h_inp, h_act
 
     def propagate_back(self, h):
-        v_inp = np.dot(self.w, h) + self.a
+        # W = (NVISIBLE x NHIDDEN), H = (NPATTERNS x NHIDDEN), A = (NVISIBLE,)
+        v_inp = np.dot(self.w, h.T) + self.a.reshape(self.n_v,1)
+        # return V_INP as (NPATTERNS x NVISIBLE)
+        v_inp = v_inp.T
         v_act = self.act_fn(v_inp)
         return v_inp, v_act
 
@@ -52,4 +57,16 @@ class Patternset(object):
 
     def get(self, p): return self.iset[p].ravel()
 
+    def getmulti(self, ps): return [self.iset[p].ravel() for p in ps]
+
     def imshow(self, x, dest=None): imagesc(x.reshape(self.shape), dest=dest)
+
+    def __len__(self): return len(self.iset)
+
+
+class Minibatch(object):
+    def __init__(self, pset, n):
+        self.pset = pset
+        self.n = n
+        self.patterns = np.array(self.pset.getmulti(sample(range(len(self.pset)), self.n)))
+

@@ -13,7 +13,7 @@ import numpy as np
 import random
 import time
 
-from base import Network, Patternset
+from base import Network, Minibatch, Patternset
 from datasets import load_mnist
 from utils import imagesc, sigmoid, sumsq, vec_to_arr
 
@@ -55,11 +55,12 @@ class RbmNetwork(Network):
     def test_trial(self, v_plus):
         h_plus_inp, h_plus_act,  = self.propagate_fwd(v_plus)
         v_minus_inp, v_minus_act = self.propagate_back(h_plus_act)
+        # ERROR = (NPATTERNS,)
         error = self.calculate_error(v_minus_act, v_plus)
         return error, v_minus_act
 
     def learn_trial(self, v_plus):
-        d_w, d_a, d_b = self.update_weights_vectorized(v_plus)
+        d_w, d_a, d_b = self.update_weights(v_plus)
         self.w += d_w
         self.a += d_a
         self.b += d_b
@@ -84,30 +85,18 @@ class RbmNetwork(Network):
 
     def samplestates(self, x): return x > np.random.uniform(size=x.shape)
 
-    def update_weights_forloop(self, v_plus):
+    def update_weights(self, v_plus):
+        n_in_minibatch = float(v_plus.shape[0])
         h_plus_inp, h_plus_act, h_plus_state, \
             v_minus_inp, v_minus_act, v_minus_state, \
             h_minus_inp, h_minus_act, h_minus_state = self.gibbs_step(v_plus)
         d_w = np.zeros(self.w.shape)
-        d_a = self.lrate * (v_plus-v_minus_act) - self.wcost * self.a
-        d_b = self.lrate * (h_plus_state-h_minus_act) - self.wcost * self.b
-        for i in range(self.n_v):
-            for j in range(self.n_h):
-                d_w[i,j] = self.lrate * \
-                    (v_plus[i]*h_plus_act[j] - v_minus_act[i]*h_minus_act[j] - 
-                     self.wcost*self.w[i,j])
-        return d_w, d_a, d_b
-
-    def update_weights_vectorized(self, v_plus):
-        h_plus_inp, h_plus_act, h_plus_state, \
-            v_minus_inp, v_minus_act, v_minus_state, \
-            h_minus_inp, h_minus_act, h_minus_state = self.gibbs_step(v_plus)
-        d_w = np.zeros(self.w.shape)
-        d_a = self.lrate * (v_plus-v_minus_act) - self.wcost * self.a
-        d_b = self.lrate * (h_plus_state-h_minus_act) - self.wcost * self.b
-        d_w = self.lrate * (np.outer(v_plus, h_plus_act) - 
-                            np.outer(v_minus_act, h_minus_act) - 
-                            self.wcost*self.w)
+        d_a = np.mean(self.lrate * (v_plus-v_minus_act) - self.wcost * self.a,
+                      axis=0)
+        d_b = np.mean(self.lrate * (h_plus_state-h_minus_act) - self.wcost * self.b,
+                      axis=0)
+        diff_plus_minus = np.dot(v_plus.T, h_plus_act) - np.dot(v_minus_act.T, h_minus_act)
+        d_w = self.lrate * (diff_plus_minus/n_in_minibatch - self.wcost*self.w)
         return d_w, d_a, d_b
 
     def plot_layers(self, v_plus, ttl=None):
@@ -232,7 +221,7 @@ def create_stripe_patternset():
     return pset
 
 def create_mnist_patternset(npatterns=None):
-    print 'Loading mnist...',
+    print ('Loading %i MNIST' % npatterns) if npatterns else 'Loading mnist...'
     mnist_ds = load_mnist(filen='../rbm/minst_train.csv', nrows=npatterns)
     assert mnist_ds.X.shape[0] == npatterns
     pset = Patternset(mnist_ds.X, shape=(28,28))
@@ -245,12 +234,15 @@ if __name__ == "__main__":
 
     lrate = 0.005
     wcost = 0.0002
-    nhidden = 400 # 529
+    nhidden = 400
     npatterns = 50000
-    train_errors = []
-    train_v_minuses = []
+    train_minibatch_errors = []
     n_train_epochs = 100000
-    plot_every_n = 5000
+    plot_every_n = 1000
+    should_plot = lambda n: not n % plot_every_n # e.g. 0, 100, 200, 300, 400, ...
+    # plot_every_logn = 10
+    # should_plot = lambda n: log(n,plot_every_logn).is_integer() # e.g. 10th, 100th, 1000th, 10000th, ...
+    n_in_minibatch = 20
 
     # pset = create_random_patternset(npatterns=npatterns)
     # pset = create_stripe_patternset()
@@ -262,38 +254,34 @@ if __name__ == "__main__":
     print pset
 
     for epochnum in range(n_train_epochs):
-        patnum = random.randint(0,npatterns-1)
-        # patnum = 0
-        pattern = pset.get(patnum)
-        [d_w, d_a, d_b] = net.learn_trial(pattern)
-        error, v_minus = net.test_trial(pattern)
+        minibatch = Minibatch(pset, n_in_minibatch)
 
-        train_errors.append(error)
-        train_v_minuses.append(v_minus)
+        [d_w, d_a, d_b] = net.learn_trial(minibatch.patterns)
+        errors, _ = net.test_trial(minibatch.patterns)
+        assert errors.shape == (n_in_minibatch,)
+        minibatch_error = np.mean(errors)
+        train_minibatch_errors.append(minibatch_error)
 
-        msg = 'At E#%i, P%i, error = %.2f' % (epochnum, patnum, error)
+        msg = 'At E#%i, error = %.2f' % (epochnum, minibatch_error)
         print msg
         
-        if plot_every_n and not epochnum % plot_every_n:
-            net.plot_layers(pattern, ttl=msg)
-            net.plot_weights(net.w, net.fignum_weights, 'Weights to hidden at E#%i' % epochnum)
-            net.plot_weights(d_w, net.fignum_dweights, 'D weights to hidden at E#%i' % epochnum)
-            net.plot_errors(train_errors)
-            net.plot_biases(net.a, net.b, net.fignum_biases, 'Biases at E#%i' % epochnum)
-            net.plot_biases(d_a, d_b, net.fignum_dbiases, 'D biases at E#%i' % epochnum)
-            plt.draw()
-
-        # pause()
+        if should_plot(epochnum):
+            pattern0 = minibatch.patterns[0].reshape(1, net.n_v)
+            net.plot_layers(pattern0, ttl=msg)
+            # net.plot_weights(net.w, net.fignum_weights, 'Weights to hidden at E#%i' % epochnum)
+            # net.plot_weights(d_w, net.fignum_dweights, 'D weights to hidden at E#%i' % epochnum)
+            net.plot_errors(train_minibatch_errors)
+            # net.plot_biases(net.a, net.b, net.fignum_biases, 'Biases at E#%i' % epochnum)
+            # net.plot_biases(d_a, d_b, net.fignum_dbiases, 'D biases at E#%i' % epochnum)
 
     for patnum in range(npatterns):
-        pattern = pset.get(patnum)
-        error, v_minus = net.test_trial(pattern)
-        print 'End of training (E#%i), error on P%i = %.2f' % (n_train_epochs, patnum, error)
+        pattern = pset.get(patnum).reshape(1, net.n_v)
+        error, _ = net.test_trial(pattern)
+        print 'End of training (E#%i), error = %.2f' % (n_train_epochs, error)
         pset.imshow(v_minus)
-        pause()
 
-    print '  '.join(['%.2f' % error for error in train_errors])
+    print '  '.join(['%.2f' % error for error in train_minibatch_errors])
     plt.figure()
-    net.plot_errors(train_errors)
+    net.plot_errors(train_minibatch_errors)
     pause()
 
