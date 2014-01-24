@@ -59,7 +59,7 @@ class RbmNetwork(Network):
     def learn_trial(self, v_plus): return self.update_weights(v_plus)
 
     def calculate_error(self, actual, desired):
-        return np.mean(np.abs(actual - desired))
+        return sumsq(actual - desired)
 
     def gibbs_step(self, v_plus):
         h_plus_inp, h_plus_act = self.propagate_fwd(v_plus)
