@@ -77,13 +77,17 @@ class RbmNetwork(Network):
     def samplestates(self, x): return x > np.random.uniform(size=x.shape)
 
     def update_weights(self, v_plus):
-        h_plus, v_minus, h_minus = self.gibbs_step(v_plus)
+        h_plus_inp, h_plus_act, h_plus_state, \
+            v_minus_inp, v_minus_act, v_minus_state, \
+            h_minus_inp, h_minus_act, h_minus_state = self.gibbs_step(v_plus)
         d_w = np.zeros(self.w.shape)
-        d_a = self.lrate * (v_plus-v_minus)
-        d_b = self.lrate * (h_plus-h_minus)
+        d_a = self.lrate * (v_plus-v_minus_act) - wcost * self.a
+        d_b = self.lrate * (h_plus_state-h_minus_act) - wcost * self.b
         for i in range(self.n_v):
             for j in range(self.n_h):
-                d_w[i,j] = self.lrate * (v_plus[i]*h_plus[j] - v_minus[i]*h_minus[j] - wcost*self.w[i,j])
+                d_w[i,j] = self.lrate * \
+                    (v_plus[i]*h_plus_state[j] - v_minus_act[i]*h_minus_act[j] - 
+                     wcost*self.w[i,j])
         self.w += d_w
         self.a += d_a
         self.b += d_b
