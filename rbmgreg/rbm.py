@@ -19,6 +19,16 @@ from utils import imagesc, sigmoid, sumsq, vec_to_arr
 
 # TODO
 #
+# commit
+# rename _act to _prob
+# check learning rate is right for numcases
+# create Epoch, TrainEpoch, TestEpoch, ValidationEpochadd 
+# momentum
+# PCD
+# validation crit
+# remove window manager comments
+# init vis bias with hinton practical tip
+# compare parameters
 
 
 class RbmNetwork(Network):
