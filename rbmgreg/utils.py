@@ -7,7 +7,7 @@ def imagesc(data, dest=None, grayscale=True, vmin=None, vmax=None):
     cmap = plt.cm.gray if grayscale else None
     if dest is None:
         fig = plt.figure(figsize=(7,4))
-        plt.matshow(data, cmap=cmap, fignum=fig.number, vmin=vmin, vmax=vmax)
+        show = plt.matshow(data, cmap=cmap, fignum=fig.number, vmin=vmin, vmax=vmax)
         plt.axes().get_xaxis().set_visible(False)
         plt.axes().get_yaxis().set_visible(False)
     else:

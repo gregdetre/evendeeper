@@ -22,14 +22,14 @@ from utils import imagesc, sigmoid, sumsq, vec_to_arr
 
 
 class RbmNetwork(Network):
-    def __init__(self, n_v, n_h, lrate, weightcost, v_shape=None):
+    def __init__(self, n_v, n_h, lrate, wcost, v_shape=None):
         self.n_v, self.n_h = n_v, n_h
         self.lrate = lrate
         self.w = self.init_weights(n_v, n_h)
         self.a = np.zeros(shape=(n_v,)) # bias to visible
         self.b = np.zeros(shape=(n_h,)) # bias to hidden
         self.v_shape = v_shape or (1,n_v)
-        self.wcost = wcost;   
+        self.wcost = wcost
 
         self.fignum_layers = 1
         self.fignum_weights = 2
@@ -58,7 +58,13 @@ class RbmNetwork(Network):
         error = self.calculate_error(v_minus_act, v_plus)
         return error, v_minus_act
 
-    def learn_trial(self, v_plus): return self.update_weights(v_plus)
+    def learn_trial(self, v_plus):
+        d_w, d_a, d_b = self.update_weights_vectorized(v_plus)
+        self.w += d_w
+        self.a += d_a
+        self.b += d_b
+        # if self.pause: pause()
+        return d_w, d_a, d_b
 
     def calculate_error(self, actual, desired):
         return sumsq(actual - desired)
@@ -78,22 +84,30 @@ class RbmNetwork(Network):
 
     def samplestates(self, x): return x > np.random.uniform(size=x.shape)
 
-    def update_weights(self, v_plus):
+    def update_weights_forloop(self, v_plus):
         h_plus_inp, h_plus_act, h_plus_state, \
             v_minus_inp, v_minus_act, v_minus_state, \
             h_minus_inp, h_minus_act, h_minus_state = self.gibbs_step(v_plus)
         d_w = np.zeros(self.w.shape)
-        d_a = self.lrate * (v_plus-v_minus_act) - wcost * self.a
-        d_b = self.lrate * (h_plus_state-h_minus_act) - wcost * self.b
+        d_a = self.lrate * (v_plus-v_minus_act) - self.wcost * self.a
+        d_b = self.lrate * (h_plus_state-h_minus_act) - self.wcost * self.b
         for i in range(self.n_v):
             for j in range(self.n_h):
                 d_w[i,j] = self.lrate * \
                     (v_plus[i]*h_plus_act[j] - v_minus_act[i]*h_minus_act[j] - 
-                     wcost*self.w[i,j])
-        self.w += d_w
-        self.a += d_a
-        self.b += d_b
-        # if self.pause: pause()
+                     self.wcost*self.w[i,j])
+        return d_w, d_a, d_b
+
+    def update_weights_vectorized(self, v_plus):
+        h_plus_inp, h_plus_act, h_plus_state, \
+            v_minus_inp, v_minus_act, v_minus_state, \
+            h_minus_inp, h_minus_act, h_minus_state = self.gibbs_step(v_plus)
+        d_w = np.zeros(self.w.shape)
+        d_a = self.lrate * (v_plus-v_minus_act) - self.wcost * self.a
+        d_b = self.lrate * (h_plus_state-h_minus_act) - self.wcost * self.b
+        d_w = self.lrate * (np.outer(v_plus, h_plus_act) - 
+                            np.outer(v_minus_act, h_minus_act) - 
+                            self.wcost*self.w)
         return d_w, d_a, d_b
 
     def plot_layers(self, v_plus, ttl=None):
@@ -231,12 +245,12 @@ if __name__ == "__main__":
 
     lrate = 0.005
     wcost = 0.0002
-    nhidden = 100 # 529
-    npatterns = 1000
+    nhidden = 400 # 529
+    npatterns = 50000
     train_errors = []
     train_v_minuses = []
-    n_train_epochs = 1000
-    plot_every_n = 10
+    n_train_epochs = 100000
+    plot_every_n = 5000
 
     # pset = create_random_patternset(npatterns=npatterns)
     # pset = create_stripe_patternset()
@@ -267,6 +281,7 @@ if __name__ == "__main__":
             net.plot_errors(train_errors)
             net.plot_biases(net.a, net.b, net.fignum_biases, 'Biases at E#%i' % epochnum)
             net.plot_biases(d_a, d_b, net.fignum_dbiases, 'D biases at E#%i' % epochnum)
+            plt.draw()
 
         # pause()
 
