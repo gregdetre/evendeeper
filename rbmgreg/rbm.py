@@ -32,7 +32,7 @@ from utils import imagesc, sigmoid, sumsq, vec_to_arr
 
 
 class RbmNetwork(Network):
-    def __init__(self, n_v, n_h, lrate, wcost, v_shape=None):
+    def __init__(self, n_v, n_h, lrate, wcost, v_shape=None, plot=True):
         self.n_v, self.n_h = n_v, n_h
         self.lrate = lrate
         self.w = self.init_weights(n_v, n_h)
@@ -47,14 +47,15 @@ class RbmNetwork(Network):
         self.fignum_errors = 4
         self.fignum_biases = 5
         self.fignum_dbiases = 6
-        plt.figure(figsize=(5,7), num=self.fignum_layers)
-        plt.figure(figsize=(9,6), num=self.fignum_weights) # 6,4
-        plt.figure(figsize=(9,6), num=self.fignum_dweights)
-        plt.figure(figsize=(3,2), num=self.fignum_errors)
-        plt.figure(figsize=(3,2), num=self.fignum_biases)
-        plt.figure(figsize=(3,2), num=self.fignum_dbiases)
-        
-        self.pause = True
+        if plot:
+            plt.figure(figsize=(5,7), num=self.fignum_layers)
+            plt.figure(figsize=(9,6), num=self.fignum_weights) # 6,4
+            plt.figure(figsize=(9,6), num=self.fignum_dweights)
+            plt.figure(figsize=(3,2), num=self.fignum_errors)
+            plt.figure(figsize=(3,2), num=self.fignum_biases)
+            plt.figure(figsize=(3,2), num=self.fignum_dbiases)
+            
+        self.pause = False
 
     def init_weights(self, n_v, n_h, scale=0.01):
         # return np.random.uniform(size=(n_v, n_h), high=scale)
@@ -74,7 +75,7 @@ class RbmNetwork(Network):
         self.w += d_w
         self.a += d_a
         self.b += d_b
-        # if self.pause: pause()
+        if self.pause: pause()
         return d_w, d_a, d_b
 
     def calculate_error(self, actual, desired):
