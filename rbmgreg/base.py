@@ -13,14 +13,14 @@ class Network(object):
     def act_fn(self, x): return x # linear activation function by default, i.e. no transformation
 
     def propagate_fwd(self, v):
-        inp = self.b + np.dot(v, self.w)
-        act = self.act_fn(inp)
-        return inp, act
+        h_inp = np.dot(v, self.w) + self.b
+        h_act = self.act_fn(h_inp)
+        return h_inp, h_act
 
     def propagate_back(self, h):
-        inp = self.a + np.dot(self.w, h)
-        act = self.act_fn(inp)
-        return inp, act
+        v_inp = np.dot(self.w, h) + self.a
+        v_act = self.act_fn(v_inp)
+        return v_inp, v_act
 
     def calculate_error(self, target): raise NotImplementedError
 
