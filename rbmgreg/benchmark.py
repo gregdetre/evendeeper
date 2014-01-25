@@ -5,7 +5,7 @@ import os
 
 from base import Minibatch, Patternset
 from rbm import create_mnist_patternset, RbmNetwork
-from utils.dt import dt_str
+from utils.dt import dt_str, eta_str
 from utils.stopwatch import Stopwatch
 from utils.utils import HashableDict
 
@@ -64,7 +64,9 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, max_time_s
     nattempts = len(attempts)
     pid = os.getpid()
     for attempt in attempts: print attempt
-    print 'Beginning %i attempts (PID=%s, DT=%s), each for %i secs' % (nattempts, pid, dt_str(), max_time_secs)
+    total_time_secs = max_time_secs * nattempts
+    print 'Beginning %i attempts (PID=%s, DT=%s), each for %i secs, ETA = %s' % \
+        (nattempts, pid, dt_str(), max_time_secs, eta_str(total_time_secs))
 
     all_t = Stopwatch()
     for attempt_idx, attempt in enumerate(attempts):
