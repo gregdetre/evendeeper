@@ -58,11 +58,11 @@ class RbmNetwork(Network):
     def act_fn(self, x): return sigmoid(x)
 
     def test_trial(self, v_plus):
-        h_plus_inp, h_plus_act,  = self.propagate_fwd(v_plus)
-        v_minus_inp, v_minus_act = self.propagate_back(h_plus_act)
+        h_plus_inp, h_plus_prob,  = self.propagate_fwd(v_plus)
+        v_minus_inp, v_minus_prob = self.propagate_back(h_plus_prob)
         # ERROR = (NPATTERNS,)
-        error = self.calculate_error(v_minus_act, v_plus)
-        return error, v_minus_act
+        error = self.calculate_error(v_minus_prob, v_plus)
+        return error, v_minus_prob
 
     def learn_trial(self, v_plus):
         d_w, d_a, d_b = self.update_weights(v_plus)
@@ -77,51 +77,51 @@ class RbmNetwork(Network):
         return sumsq(actual - desired)
 
     def gibbs_step(self, v_plus):
-        h_plus_inp, h_plus_act = self.propagate_fwd(v_plus)
-        h_plus_state = self.samplestates(h_plus_act)
-        v_minus_inp, v_minus_act = self.propagate_back(h_plus_state)
-        v_minus_state = self.samplestates(v_minus_act)
-        # h_minus_inp, h_minus_act = self.propagate_fwd(v_minus_state)
-        h_minus_inp, h_minus_act = self.propagate_fwd(v_minus_act)
-        h_minus_state = self.samplestates(h_minus_act)
+        h_plus_inp, h_plus_prob = self.propagate_fwd(v_plus)
+        h_plus_state = self.samplestates(h_plus_prob)
+        v_minus_inp, v_minus_prob = self.propagate_back(h_plus_state)
+        v_minus_state = self.samplestates(v_minus_prob)
+        # h_minus_inp, h_minus_prob = self.propagate_fwd(v_minus_state)
+        h_minus_inp, h_minus_prob = self.propagate_fwd(v_minus_prob)
+        h_minus_state = self.samplestates(h_minus_prob)
         return \
-            h_plus_inp, h_plus_act, h_plus_state, \
-            v_minus_inp, v_minus_act, v_minus_state, \
-            h_minus_inp, h_minus_act, h_minus_state
+            h_plus_inp, h_plus_prob, h_plus_state, \
+            v_minus_inp, v_minus_prob, v_minus_state, \
+            h_minus_inp, h_minus_prob, h_minus_state
 
     def samplestates(self, x): return x > np.random.uniform(size=x.shape)
 
     def update_weights(self, v_plus):
         n_in_minibatch = float(v_plus.shape[0])
-        h_plus_inp, h_plus_act, h_plus_state, \
-            v_minus_inp, v_minus_act, v_minus_state, \
-            h_minus_inp, h_minus_act, h_minus_state = self.gibbs_step(v_plus)
+        h_plus_inp, h_plus_prob, h_plus_state, \
+            v_minus_inp, v_minus_prob, v_minus_state, \
+            h_minus_inp, h_minus_prob, h_minus_state = self.gibbs_step(v_plus)
         d_w = np.zeros(self.w.shape)
-        d_a = np.mean(self.lrate * (v_plus-v_minus_act) - self.wcost * self.a,
+        d_a = np.mean(self.lrate * (v_plus-v_minus_prob) - self.wcost * self.a,
                       axis=0)
-        d_b = np.mean(self.lrate * (h_plus_state-h_minus_act) - self.wcost * self.b,
+        d_b = np.mean(self.lrate * (h_plus_state-h_minus_prob) - self.wcost * self.b,
                       axis=0)
-        diff_plus_minus = np.dot(v_plus.T, h_plus_act) - np.dot(v_minus_act.T, h_minus_act)
+        diff_plus_minus = np.dot(v_plus.T, h_plus_prob) - np.dot(v_minus_prob.T, h_minus_prob)
         d_w = self.lrate * (diff_plus_minus/n_in_minibatch - self.wcost*self.w)
         return d_w, d_a, d_b
 
     def plot_layers(self, v_plus, ttl=None):
         v_bias = net.a.reshape(self.v_shape)
         h_bias = vec_to_arr(net.b)
-        h_plus_inp, h_plus_act, h_plus_state, \
-            v_minus_inp, v_minus_act, v_minus_state, \
-            h_minus_inp, h_minus_act, h_minus_state = self.gibbs_step(v_plus)
+        h_plus_inp, h_plus_prob, h_plus_state, \
+            v_minus_inp, v_minus_prob, v_minus_state, \
+            h_minus_inp, h_minus_prob, h_minus_state = self.gibbs_step(v_plus)
         lmin, lmax = None, None
 
         v_plus = v_plus.reshape(self.v_shape)
         h_plus_inp = vec_to_arr(h_plus_inp)*1.
-        h_plus_act = vec_to_arr(h_plus_act)*1.
+        h_plus_prob = vec_to_arr(h_plus_prob)*1.
         h_plus_state = vec_to_arr(h_plus_state)*1.
         v_minus_inp = v_minus_inp.reshape(self.v_shape)
-        v_minus_act = v_minus_act.reshape(self.v_shape)
+        v_minus_prob = v_minus_prob.reshape(self.v_shape)
         v_minus_state = v_minus_state.reshape(self.v_shape)
         h_minus_inp = vec_to_arr(h_minus_inp)*1.
-        h_minus_act = vec_to_arr(h_minus_act)*1.
+        h_minus_prob = vec_to_arr(h_minus_prob)*1.
         h_minus_state = vec_to_arr(h_minus_state)*1.
 
         # fig = plt.figure(figsize=(6,9))
@@ -132,15 +132,15 @@ class RbmNetwork(Network):
         gs = gridspec.GridSpec(16,2)
         # top left downwards
         ax = fig.add_subplot(gs[    0,0]); im = imagesc(h_plus_state, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_plus_state')
-        ax = fig.add_subplot(gs[    1,0]); im = imagesc(h_plus_act, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_plus_act')
+        ax = fig.add_subplot(gs[    1,0]); im = imagesc(h_plus_prob, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_plus_prob')
         ax = fig.add_subplot(gs[    2,0]); im = imagesc(h_plus_inp, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_plus_inp')
         ax = fig.add_subplot(gs[ 5: 8,0]); im = imagesc(v_plus, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_plus'); fig.colorbar(im) # , ticks=[lmin, lmax])
         # top right downwards
         ax = fig.add_subplot(gs[    0,1]); im = imagesc(h_minus_state, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_minus_state')
-        ax = fig.add_subplot(gs[    1,1]); im = imagesc(h_minus_act, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_minus_act')
+        ax = fig.add_subplot(gs[    1,1]); im = imagesc(h_minus_prob, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_minus_prob')
         ax = fig.add_subplot(gs[    2,1]); im = imagesc(h_minus_inp, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_minus_inp')
         ax = fig.add_subplot(gs[ 5: 8,1]); im = imagesc(v_minus_state*1, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_minus_state'); fig.colorbar(im) # , ticks=[lmin, lmax])
-        ax = fig.add_subplot(gs[ 9:12,1]); im = imagesc(v_minus_act*1, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_minus_act'); fig.colorbar(im) # , ticks=[lmin, lmax])
+        ax = fig.add_subplot(gs[ 9:12,1]); im = imagesc(v_minus_prob*1, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_minus_prob'); fig.colorbar(im) # , ticks=[lmin, lmax])
         ax = fig.add_subplot(gs[13:16,1]); im = imagesc(v_minus_inp*1, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_minus_inp'); fig.colorbar(im) # , ticks=[lmin, lmax])
         plt.draw()
 
