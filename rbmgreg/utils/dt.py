@@ -17,3 +17,8 @@ def dt_str(dt=None, hoursmins=True, seconds=True):
         fmt += '_%S'
     return dt.strftime(fmt)
 
+def eta_str(secs):
+    eta_dt = datetime.now() + timedelta(seconds=secs)
+    eta_str = eta_dt.strftime('%Y-%m-%d at %H:%M')
+    return eta_str
+
