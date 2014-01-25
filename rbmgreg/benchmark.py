@@ -63,7 +63,6 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, max_time_s
     nattempts = len(attempts)
     pid = os.getpid()
     for attempt in attempts: print attempt
-    import sys; sys.exit(0)
     print 'Beginning %i attempts (PID=%s, DT=%s), each for %i secs' % (nattempts, pid, dt_str(), max_time_secs)
 
     all_t = Stopwatch()
@@ -106,7 +105,7 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, max_time_s
     
 
     print_best(attempts, params)
-    if all_t.finish(milli=False) > 1000: pause()
+    # if all_t.finish(milli=False) > 1000: pause()
 
     
 if __name__ == "__main__":
