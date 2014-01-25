@@ -15,7 +15,7 @@ import time
 
 from base import Network, Minibatch, Patternset
 from datasets import load_mnist
-from utils import imagesc, sigmoid, sumsq, vec_to_arr
+from utils.utils import imagesc, sigmoid, sumsq, vec_to_arr
 
 # TODO
 #

@@ -1,7 +1,7 @@
 import numpy as np
 from random import sample
 
-from utils import imagesc, isunique, vec_to_arr
+from utils.utils import imagesc, isunique, vec_to_arr
 
 
 class Network(object):

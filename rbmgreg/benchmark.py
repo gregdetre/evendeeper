@@ -2,7 +2,9 @@ import numpy as np
 
 from base import Minibatch, Patternset
 from rbm import create_mnist_patternset, RbmNetwork
-from stopwatch import Stopwatch
+from utils.dt import dt_str
+from utils.stopwatch import Stopwatch
+from utils.utils import HashableDict
 
 # TODO
 #

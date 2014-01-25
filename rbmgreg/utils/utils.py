@@ -2,6 +2,12 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 
+class HashableDict(dict):
+    # http://code.activestate.com/recipes/414283-frozen-dictionaries/
+    def __hash__(self):
+        return hash(tuple(sorted(self.items())))
+
+
 def imagesc(data, dest=None, grayscale=True, vmin=None, vmax=None):
     plt.ion()
     cmap = plt.cm.gray if grayscale else None
