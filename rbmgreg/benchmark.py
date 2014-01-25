@@ -52,11 +52,12 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, max_time_s
         for lr in lrate: # [0.005, 0.02]:
             for wc in wcost: #, 0.002]:
                 for mo in momentum: # [0, 0.4, 0.9]:
-                    for n_in_train_minibatch in [20]: # [10, 250]:
+                    for nitm in n_in_train_minibatch: # [10, 250]:
                         attempts.append({'nhidden': nh,
                                          'lrate': lr,
                                          'wcost': wc,
                                          'momentum': mo,
+                                         'n_in_train_minibatch': nitm,
                                          'should_plot': False,
                                          })
     
@@ -78,7 +79,7 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, max_time_s
                          plot=False)
         epochnum = 0
         while True:
-            train_minibatch = Minibatch(pset, n_in_train_minibatch)
+            train_minibatch = Minibatch(pset, nitm)
             [d_w, d_a, d_b] = net.learn_trial(train_minibatch.patterns)
             if t.finish(milli=False) > max_time_secs: break
             epochnum += 1
@@ -96,7 +97,6 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, max_time_s
         attempt['dt'] = dt_str()
         attempt['test_error'] = test_error
         attempt['npatterns'] = npatterns
-        attempt['n_in_train_minibatch'] = n_in_train_minibatch
 
         print 'Finished %i of %i: error %.2f in %.1f secs' % (attempt_idx+1, nattempts, test_error, train_elapsed)
         print attempt
@@ -124,7 +124,8 @@ if __name__ == "__main__":
     defaults = {'nhidden': 100,
                 'lrate': 0.005,
                 'wcost': 0.0002,
-                'momentum': 0.9,}
+                'momentum': 0.9,
+                'n_in_train_minibatch': 10,}
     for k,v in defaults.items():
         if kwargs.get(k) == []: kwargs[k].append(v)
     gridsearch(**kwargs)
