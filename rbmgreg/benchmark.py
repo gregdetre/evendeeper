@@ -40,12 +40,6 @@ def sorted_attempts(attempts):
     return attempts
 
 def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, max_time_secs):
-    npatterns = 10000
-    pset = create_mnist_patternset(npatterns=npatterns)
-    # xxx - this isn't a proper test since we're using the training data, rather than withheld...
-    n_in_test_minibatch = 1000
-    test_minibatch = Minibatch(pset, n_in_test_minibatch)
-
     params = ['nhidden', 'lrate', 'wcost', 'momentum', 'n_in_train_minibatch']
     attempts = []
     for nh in nhidden: # [200, 400, 800]:
@@ -63,10 +57,16 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, max_time_s
     
     nattempts = len(attempts)
     pid = os.getpid()
-    for attempt in attempts: print attempt
     total_time_secs = max_time_secs * nattempts
     print 'Beginning %i attempts (PID=%s, DT=%s), each for %i secs, ETA = %s' % \
         (nattempts, pid, dt_str(), max_time_secs, eta_str(total_time_secs))
+    for attempt in attempts: print attempt
+
+    npatterns = 10000
+    pset = create_mnist_patternset(npatterns=npatterns)
+    # xxx - this isn't a proper test since we're using the training data, rather than withheld...
+    n_in_test_minibatch = 1000
+    test_minibatch = Minibatch(pset, n_in_test_minibatch)
 
     all_t = Stopwatch()
     for attempt_idx, attempt in enumerate(attempts):
