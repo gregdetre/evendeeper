@@ -1,10 +1,3 @@
-# # http://stackoverflow.com/questions/1677571/matplotlib-multiple-figure-arrangement
-# import matplotlib
-# matplotlib.use('Agg') 
-# matplotlib.use('WX') 
-# matplotlib.use('QtAgg') 
-# matplotlib.use('TkAgg') 
-
 from ipdb import set_trace as pause
 from math import ceil, sqrt
 from matplotlib import pyplot as plt
@@ -116,17 +109,6 @@ class RbmNetwork(Network):
         h_plus_inp, h_plus_act, h_plus_state, \
             v_minus_inp, v_minus_act, v_minus_state, \
             h_minus_inp, h_minus_act, h_minus_state = self.gibbs_step(v_plus)
-#         lmax = max(map(max, 
-#                        [h_plus_inp, h_plus_act, h_plus_state,
-#                         v_minus_inp, v_minus_act, v_minus_state,
-#                         h_minus_inp, h_minus_act, h_minus_state]))
-#         lmin = min(map(min,
-#                        [h_plus_inp, h_plus_act, h_plus_state,
-#                         v_minus_inp, v_minus_act, v_minus_state,
-#                         h_minus_inp, h_minus_act, h_minus_state]))
-#         bmax = max(map(lambda x: max(x.ravel()), [v_bias, h_bias]))
-#         bmin = min(map(lambda x: min(x.ravel()), [v_bias, h_bias]))
-        # lmin, lmax, bmin, bmax = None, None, None, None
         lmin, lmax = None, None
 
         v_plus = v_plus.reshape(self.v_shape)
@@ -150,20 +132,15 @@ class RbmNetwork(Network):
         ax = fig.add_subplot(gs[    0,0]); im = imagesc(h_plus_state, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_plus_state')
         ax = fig.add_subplot(gs[    1,0]); im = imagesc(h_plus_act, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_plus_act')
         ax = fig.add_subplot(gs[    2,0]); im = imagesc(h_plus_inp, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_plus_inp')
-        # ax = fig.add_subplot(gs[    3,0]); im = imagesc(h_bias, dest=ax, vmin=bmin, vmax=bmax); ax.set_title('h bias')
         ax = fig.add_subplot(gs[ 5: 8,0]); im = imagesc(v_plus, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_plus'); fig.colorbar(im) # , ticks=[lmin, lmax])
-        # ax = fig.add_subplot(gs[17:20,0]); im = imagesc(v_bias, dest=ax, vmin=bmin, vmax=bmax); ax.set_title('v bias'); fig.colorbar(im) # , ticks=[bmin, bmax])
         # top right downwards
         ax = fig.add_subplot(gs[    0,1]); im = imagesc(h_minus_state, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_minus_state')
         ax = fig.add_subplot(gs[    1,1]); im = imagesc(h_minus_act, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_minus_act')
         ax = fig.add_subplot(gs[    2,1]); im = imagesc(h_minus_inp, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_minus_inp')
-        # ax = fig.add_subplot(gs[    3,1]); im = imagesc(h_bias, dest=ax, vmin=bmin, vmax=bmax); ax.set_title('h bias')
         ax = fig.add_subplot(gs[ 5: 8,1]); im = imagesc(v_minus_state*1, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_minus_state'); fig.colorbar(im) # , ticks=[lmin, lmax])
         ax = fig.add_subplot(gs[ 9:12,1]); im = imagesc(v_minus_act*1, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_minus_act'); fig.colorbar(im) # , ticks=[lmin, lmax])
         ax = fig.add_subplot(gs[13:16,1]); im = imagesc(v_minus_inp*1, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_minus_inp'); fig.colorbar(im) # , ticks=[lmin, lmax])
-        # ax = fig.add_subplot(gs[17:20,1]); im = imagesc(v_bias, dest=ax, vmin=bmin, vmax=bmax); ax.set_title('v bias'); fig.colorbar(im) # , ticks=[bmin, bmax])
         plt.draw()
-        # time.sleep(.5)
 
     def plot_biases(self, v_bias, h_bias, fignum, ttl=None):
         vmin = None # min(map(min, [v_bias, h_bias]))
@@ -190,7 +167,6 @@ class RbmNetwork(Network):
             ax = fig.add_subplot(gs[x,y])
             im = imagesc(w[:,hnum].reshape(self.v_shape), dest=ax, vmin=vmin, vmax=vmax)
             # ax.set_title('to H#%i' % hnum)
-        # gs.tight_layout(fig) # crashes
         fig.colorbar(im)
         plt.draw()
     
@@ -199,37 +175,12 @@ class RbmNetwork(Network):
         plt.clf()
         plt.plot(errors)
         plt.ylim(ymin=0, ymax=max(errors)*1.1)
-        # plt.show()
         plt.draw()
 
 
 def create_random_patternset(shape=(8,2), npatterns=5):
     iset = [np.random.rand(*shape) for _ in range(npatterns)]
     return Patternset(iset)
-
-# def create_stripe_patternset():
-#     input0 = np.array([[.5,1,.2,0,0,0],
-#                        [.5,1,.2,0,0,0]])
-#     input1 = np.array([[0,.5,1,.2,0,0],
-#                        [0,.5,1,.2,0,0]])
-#     input2 = np.array([[0,0,.5,1,.2,0],
-#                        [0,0,.5,1,.2,0]])
-#     input3 = np.array([[0,0,0,.5,1,.2],
-#                        [0,0,0,.5,1,.2]])
-#     pset = Patternset([input0, input1, input2, input3])
-#     return pset
-
-def create_stripe_patternset():
-    input0 = np.array([[1,1,0,0,0,0,0,0],
-                       [1,1,0,0,0,0,0,0]])
-    input1 = np.array([[0,0,1,1,0,0,0,0],
-                       [0,0,1,1,0,0,0,0]])
-    input2 = np.array([[0,0,0,0,1,1,0,0],
-                       [0,0,0,0,1,1,0,0]])
-    input3 = np.array([[0,0,0,0,0,0,1,1],
-                       [0,0,0,0,0,0,1,1]])
-    pset = Patternset([input0, input1, input2, input3])
-    return pset
 
 def create_mnist_patternset(npatterns=None):
     print 'Loading %s MNIST patterns' % (str(npatterns) if npatterns else 'all')
@@ -256,7 +207,6 @@ if __name__ == "__main__":
     n_in_minibatch = 20
 
     # pset = create_random_patternset(npatterns=npatterns)
-    # pset = create_stripe_patternset()
     pset = create_mnist_patternset(npatterns=npatterns)
 
     net = RbmNetwork(np.prod(pset.shape), nhidden, lrate, wcost, v_shape=pset.shape)
