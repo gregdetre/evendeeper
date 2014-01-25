@@ -11,7 +11,9 @@ from utils.utils import HashableDict
 # TODO
 #
 # - test on withheld data
-
+# - write out to sqlite, pickle
+# - plot on graph
+# - run on c3.large
 
 def print_best(attempts, keys):
     attempts = sorted_attempts(attempts)
