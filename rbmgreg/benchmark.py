@@ -35,23 +35,23 @@ if __name__ == "__main__":
     test_minibatch = Minibatch(pset, n_in_test_minibatch)
     max_time_secs = 100 # how long to give each ATTEMPT
 
-    params = ['lrate', 'wcost', 'nhidden', 'n_in_train_minibatch']
+    params = ['nhidden', 'lrate', 'wcost', 'momentum', 'n_in_train_minibatch']
     attempts = []
-    for lrate in [0.005, 0.02]:
-        for wcost in [0.0002, 0.002]:
-            for nhidden in [200, 400, 800]:
-                for n_in_train_minibatch in [10, 250]:
-                    attempts.append({'lrate': lrate,
-                                     'wcost': wcost,
-                                     'nhidden': nhidden,
-                                     'npatterns': npatterns,
-                                     'n_in_train_minibatch': n_in_train_minibatch,
-                                     'should_plot': False,
-                                     })
+    for nhidden in [100]: # [200, 400, 800]:
+        for lrate in [0.005]: # [0.005, 0.02]:
+            for wcost in [0, 0.0002]: #, 0.002]:
+                for momentum in [0, 0.4, 0.9]:
+                    for n_in_train_minibatch in [20]: # [10, 250]:
+                        attempts.append({'nhidden': nhidden,
+                                         'lrate': lrate,
+                                         'wcost': wcost,
+                                         'momentum': momentum,
+                                         'should_plot': False,
+                                         })
     
     nattempts = len(attempts)
     pid = os.getpid()
-    print 'Beginning %i attempts (PID=%s, DT=%s)' % (nattempts, pid, dt_str())
+    print 'Beginning %i attempts (PID=%s, DT=%s), each for %i secs' % (nattempts, pid, dt_str(), max_time_secs)
     all_t = Stopwatch()
     for attempt_idx, attempt in enumerate(attempts):
         np.random.seed(1)
@@ -60,11 +60,12 @@ if __name__ == "__main__":
                          attempt['nhidden'],
                          attempt['lrate'],
                          attempt['wcost'],
+                         attempt['momentum'],
                          v_shape=pset.shape,
                          plot=False)
         epochnum = 0
         while True:
-            train_minibatch = Minibatch(pset, attempt['n_in_train_minibatch'])
+            train_minibatch = Minibatch(pset, n_in_train_minibatch)
             [d_w, d_a, d_b] = net.learn_trial(train_minibatch.patterns)
             if t.finish(milli=False) > max_time_secs: break
             epochnum += 1
@@ -79,9 +80,12 @@ if __name__ == "__main__":
         attempt['pid'] = pid
         attempt['n_train_epochs'] = epochnum
         attempt['train_elapsed'] = train_elapsed
-        attempt['dt'] = dt_str
+        attempt['dt'] = dt_str()
         attempt['test_error'] = test_error
-        print 'Finished %i of %i: error %.2f in %.1f seconds' % (attempt_idx+1, nattempts, test_error, train_elapsed)
+        attempt['npatterns'] = npatterns
+        attempt['n_in_train_minibatch'] = n_in_train_minibatch
+
+        print 'Finished %i of %i: error %.2f in %.1f secs' % (attempt_idx+1, nattempts, test_error, train_elapsed)
         print attempt
         print '--------------------'
         print

@@ -12,27 +12,28 @@ from utils.utils import imagesc, sigmoid, sumsq, vec_to_arr
 
 # TODO
 #
-# commit
 # rename _act to _prob
 # check learning rate is right for numcases
 # create Epoch, TrainEpoch, TestEpoch, ValidationEpochadd 
-# momentum
 # PCD
 # validation crit
-# remove window manager comments
 # init vis bias with hinton practical tip
 # compare parameters
 
 
 class RbmNetwork(Network):
-    def __init__(self, n_v, n_h, lrate, wcost, v_shape=None, plot=True):
+    def __init__(self, n_v, n_h, lrate, wcost, momentum, v_shape=None, plot=True):
         self.n_v, self.n_h = n_v, n_h
         self.lrate = lrate
         self.w = self.init_weights(n_v, n_h)
         self.a = np.zeros(shape=(n_v,)) # bias to visible
         self.b = np.zeros(shape=(n_h,)) # bias to hidden
+        self.d_w = np.zeros(shape=self.w.shape)
+        self.d_a = np.zeros(shape=self.a.shape)
+        self.d_b = np.zeros(shape=self.b.shape)
         self.v_shape = v_shape or (1,n_v)
         self.wcost = wcost
+        self.momentum = momentum
 
         self.fignum_layers = 1
         self.fignum_weights = 2
@@ -65,11 +66,12 @@ class RbmNetwork(Network):
 
     def learn_trial(self, v_plus):
         d_w, d_a, d_b = self.update_weights(v_plus)
-        self.w += d_w
-        self.a += d_a
-        self.b += d_b
+        self.w += d_w + self.momentum*self.d_w
+        self.a += d_a + self.momentum*self.d_a
+        self.b += d_b + self.momentum*self.d_b
         if self.pause: pause()
-        return d_w, d_a, d_b
+        self.d_w, self.d_a, self.d_b = d_w, d_a, d_b
+        return self.d_w, self.d_a, self.d_b
 
     def calculate_error(self, actual, desired):
         return sumsq(actual - desired)
@@ -196,20 +198,21 @@ if __name__ == "__main__":
 
     lrate = 0.005
     wcost = 0.0002
-    nhidden = 400
-    npatterns = 50000
+    nhidden = 100
+    npatterns = 10000
     train_minibatch_errors = []
     n_train_epochs = 100000
-    plot_every_n = 1000
+    plot_every_n = 500
     should_plot = lambda n: not n % plot_every_n # e.g. 0, 100, 200, 300, 400, ...
     # plot_every_logn = 10
     # should_plot = lambda n: log(n,plot_every_logn).is_integer() # e.g. 10th, 100th, 1000th, 10000th, ...
     n_in_minibatch = 20
+    momentum = 0.5
 
     # pset = create_random_patternset(npatterns=npatterns)
     pset = create_mnist_patternset(npatterns=npatterns)
 
-    net = RbmNetwork(np.prod(pset.shape), nhidden, lrate, wcost, v_shape=pset.shape)
+    net = RbmNetwork(np.prod(pset.shape), nhidden, lrate, wcost, momentum, v_shape=pset.shape)
     # pset = create_random_patternset()
     print net
     print pset
