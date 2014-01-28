@@ -62,7 +62,7 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, max_time_s
         (nattempts, pid, dt_str(), max_time_secs, eta_str(total_time_secs))
     for attempt in attempts: print attempt
 
-    npatterns = 10000
+    npatterns = None
     pset = create_mnist_patternset(npatterns=npatterns)
     # xxx - this isn't a proper test since we're using the training data, rather than withheld...
     n_in_test_minibatch = 1000
