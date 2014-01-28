@@ -48,8 +48,6 @@ class RbmNetwork(Network):
             plt.figure(figsize=(3,2), num=self.fignum_errors)
             plt.figure(figsize=(3,2), num=self.fignum_biases)
             plt.figure(figsize=(3,2), num=self.fignum_dbiases)
-            
-        self.pause = False
 
     def init_weights(self, n_v, n_h, scale=0.01):
         # return np.random.uniform(size=(n_v, n_h), high=scale)
@@ -75,7 +73,6 @@ class RbmNetwork(Network):
         self.w += d_w + self.momentum*self.d_w
         self.a += d_a + self.momentum*self.d_a
         self.b += d_b + self.momentum*self.d_b
-        if self.pause: pause()
         self.d_w, self.d_a, self.d_b = d_w, d_a, d_b
         return self.d_w, self.d_a, self.d_b
 
