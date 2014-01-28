@@ -55,6 +55,12 @@ class RbmNetwork(Network):
         # return np.random.uniform(size=(n_v, n_h), high=scale)
         return np.random.normal(size=(n_v, n_h), loc=0, scale=scale)
 
+    def propagate_fwd(self, v):
+        return super(RbmNetwork, self).propagate_fwd(v, self.w, self.b)
+
+    def propagate_back(self, h):
+        return super(RbmNetwork, self).propagate_back(h, self.w, self.a)
+
     def act_fn(self, x): return sigmoid(x)
 
     def test_trial(self, v_plus):
