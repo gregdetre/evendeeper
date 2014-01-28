@@ -65,10 +65,10 @@ class RbmNetwork(Network):
         return error, v_minus_act
 
     def learn_trial(self, v_plus):
-        d_w, d_a, d_b = self.update_weights(v_plus)
+        d_w, d_a, d_b = self.update_weights_pt(v_plus)
         self.w += d_w + self.momentum*self.d_w
-        self.a += d_a + self.momentum*self.d_a
-        self.b += d_b + self.momentum*self.d_b
+        self.a = self.a + d_a + self.momentum*self.d_a
+        self.b = self.b + d_b + self.momentum*self.d_b
         if self.pause: pause()
         self.d_w, self.d_a, self.d_b = d_w, d_a, d_b
         return self.d_w, self.d_a, self.d_b
@@ -104,6 +104,74 @@ class RbmNetwork(Network):
         diff_plus_minus = np.dot(v_plus.T, h_plus_act) - np.dot(v_minus_act.T, h_minus_act)
         d_w = self.lrate * (diff_plus_minus/n_in_minibatch - self.wcost*self.w)
         return d_w, d_a, d_b
+
+    def update_weights_pt(self, v_plus):
+        # array of length M gives us Markov chains with different temperatures
+        M = 10 # number of parallel chains
+
+        T = np.arange(1, M+1)
+
+        d_w = np.zeros_like(self.w)
+        d_a = np.zeros(shape=self.a.shape)
+        d_b = np.zeros(shape=self.b.shape)
+
+        for x in range(v_plus.shape[0]):
+            v_sample = v_plus[x, :]
+            v_sample = v_sample.reshape((1,784))
+            h_plus_acts = []
+            v_minus_acts = []
+            h_minus_acts = []
+            
+            
+            w_orig = self.w.copy()
+
+            for m in range(M):
+               self.w = w_orig * T[m]
+               _, h_plus_act, _, \
+                   _, v_minus_act, _, \
+                   _, h_minus_act, _ = self.gibbs_step(v_sample)
+               h_plus_acts.append(h_plus_act)
+               v_minus_acts.append(v_minus_act)
+               h_minus_acts.append(h_minus_act)
+
+            # swapping
+            for m in range(1, M, 2):
+                v = v_minus_acts
+                h = h_minus_acts
+                if self.metropolis_ratio(T[m], T[m-1], v[m], v[m-1], h[m], h[m-1]) \
+                    > np.random.uniform():
+                    v[m], v[m-1] = v[m-1], v[m]
+                    h[m], h[m-1] = h[m-1], h[m]
+
+            for m in range(2, M, 2):
+                v = v_minus_acts
+                h = h_minus_acts
+                if self.metropolis_ratio(T[m], T[m-1], v[m], v[m-1], h[m], h[m-1]) \
+                    > np.random.uniform():
+                    v[m], v[m-1] = v[m-1], v[m]
+                    h[m], h[m-1] = h[m-1], h[m]
+
+            # update weights
+            # self.delta_weights[i] += probs_0[i] * v_0 - probs_k[i] * v_k
+            #self.delta_hidden_bias += probs_0 - probs_k
+            #self.delta_visible_bias += v_0 - v_k
+            # TODO we take the samples from the original chain (T_1 = 1)
+            d_w += np.dot(v_sample.T, h_plus_acts[0]) - np.dot(v_minus_acts[0].T, h_minus_acts[0])
+            d_a = d_a + v_sample - v_minus_acts[0]
+            d_b = d_b + h_plus_acts[0] - h_minus_acts[0]
+
+        return d_w, d_a, d_b
+
+
+
+
+    def metropolis_ratio(self, T_curr, T_prev, v_curr, v_prev, h_curr, h_prev):
+        ratio = ((1.0/T_curr)-(1.0/T_prev)) * (self.energy_fn(v_curr, h_curr) - \
+                        self.energy_fn(v_prev, h_prev))
+        return np.minimum(1, ratio)
+
+    def energy_fn(self, v, h):
+        return - np.dot(np.dot(v, self.w), h.T) - np.vdot(v, self.a) - np.vdot(h, self.b)
 
     def plot_layers(self, v_plus, ttl=None):
         v_bias = net.a.reshape(self.v_shape)
@@ -199,7 +267,7 @@ if __name__ == "__main__":
     lrate = 0.005
     wcost = 0.0002
     nhidden = 100
-    npatterns = 10000
+    npatterns = 100
     train_minibatch_errors = []
     n_train_epochs = 100000
     plot_every_n = 500
