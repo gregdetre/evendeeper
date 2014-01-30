@@ -121,37 +121,36 @@ def test_epoch(net, acts0, targets, verbose=True):
     print '%i) err = %.2f' % (e, mean_error)
     return errors, mean_error
 
-def data_xor():
+def xor(*args, **kwargs):
     data = [[[0,0], [0]],
             [[0,1], [1]],
             [[1,0], [1]],
             [[1,1], [0]]
             ]
-    inputs = [vec_to_arr(np.array(a)) for a,t in data]
-    outputs = [vec_to_arr(np.array(t)) for a,t in data]
-    iset = Patternset(inputs)
-    oset = Patternset(outputs)
-    net = BackpropNetwork([2, 2, 1], lrate=0.01)
+    iset = Patternset([vec_to_arr(np.array(a)) for a,t in data])
+    oset = Patternset([vec_to_arr(np.array(t)) for a,t in data])
+    net = BackpropNetwork([2, 2, 1], *args, **kwargs)
     return net, iset, oset
 
-def data_rand_autoencoder():
-    data = []
-    n_inp_out = 4
-    nhidden = 12
-    npatterns = 10
-    for d in range(npatterns):
-        data.append(np.random.uniform(size=(1,n_inp_out)))
-    pset = Patternset(data)
-    # net = BackpropNetwork([n_inp_out, nhidden, n_inp_out])
-    net = BackpropNetwork([n_inp_out, nhidden*2, nhidden, n_inp_out], lrate=0.01)
+def autoencoder(pset, nhiddens, *args, **kwargs):
+    n_inp_out = np.prod(pset.shape)
+    layersizes = [n_inp_out] + nhiddens + [n_inp_out]
+    net = BackpropNetwork(layersizes, *args, **kwargs)
     return net, pset, pset
+
+def rand_autoencoder():
+    n_inp_out = 4
+    npatterns = 10
+    nhiddens = [12]
+    pset = Patternset([np.random.uniform(size=(1,n_inp_out)) for d in range(npatterns)])
+    return autoencoder(pset, nhiddens=nhiddens)
 
 
 if __name__ == "__main__":
     np.random.seed()
-    net, iset, oset = data_xor()
-    # net, iset, oset = data_rand_autoencoder()
-    nEpochs = 100000
+    # net, iset, oset = xor(lrate=0.1)
+    net, iset, oset = rand_autoencoder()
+    nEpochs = 2000 # 100000
     n_in_minibatch = min(len(iset), 20)
     report_every = 1000
     for e in range(nEpochs):
