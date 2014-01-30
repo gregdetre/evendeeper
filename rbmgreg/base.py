@@ -37,36 +37,50 @@ class Network(object):
 
 
 class Patternset(object):
-    def __init__(self, iset, shape=None):
-        # ISET (inputs) = list of (X x Y) numpy arrays
+    def __init__(self, patterns, shape=None):
+        # PATTERNS (inputs) = list of (X x Y) numpy arrays
         #
         # check they're all the same shape
-        assert isunique([i.shape for i in iset])
+        assert isunique([i.shape for i in patterns])
         if shape is None:
             # if it's a (N,) vector, turn it into a (N,1) array
-            if len(iset[0].shape) == 1: iset = [vec_to_arr(i) for i in iset]
+            if len(patterns[0].shape) == 1: patterns = [vec_to_arr(i) for i in patterns]
         else:
-            iset = [i.reshape(shape) for i in iset]
-        self.shape = iset[0].shape
-        self.iset = iset
+            patterns = [i.reshape(shape) for i in patterns]
+        self.shape = patterns[0].shape
+        self.patterns = patterns
 
     def __repr__(self):
         return '%s I(%ix%i)x%i' % (
             self.__class__.__name__,
-            self.shape[0], self.shape[1], len(self.iset))
+            self.shape[0], self.shape[1], len(self.patterns))
 
-    def get(self, p): return self.iset[p].ravel()
+    def get(self, p): return self.patterns[p].ravel()
 
-    def getmulti(self, ps): return [self.iset[p].ravel() for p in ps]
+    def getmulti(self, ps): return [self.patterns[p].ravel() for p in ps]
 
     def imshow(self, x, dest=None): imagesc(x.reshape(self.shape), dest=dest)
 
-    def __len__(self): return len(self.iset)
+    def __len__(self): return len(self.patterns)
 
 
 class Minibatch(object):
+    # TODO sample without replacement
     def __init__(self, pset, n):
         self.pset = pset
         self.n = n
-        self.patterns = np.array(self.pset.getmulti(sample(range(len(self.pset)), self.n)))
+        self.patterns = np.array(self.getmulti(sample(range(len(self.pset)), self.n)))
+        
+    def getmulti(self, idx): return self.pset.getmulti(idx)
 
+class Minibatch2(object):
+    def __init__(self, iset, oset, n):
+        self.iset = iset
+        self.oset = oset
+        self.n = n
+        assert iset.shape[0] == oset.shape[0] # total number of patterns
+        idx = sample(range(len(self.iset)), self.n)
+        self.ipatterns, self.opatterns = [np.array(x) for x in self.getmulti(idx)]
+        self.patterns = self.ipatterns, self.opatterns
+
+    def getmulti(self, idx): return self.iset.getmulti(idx), self.oset.getmulti(idx)

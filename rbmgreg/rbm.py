@@ -6,7 +6,7 @@ import numpy as np
 import random
 import time
 
-from base import Network, Minibatch, Patternset
+from base import Minibatch, Network, Patternset
 from datasets import load_mnist
 from utils.utils import imagesc, sigmoid, sumsq, vec_to_arr
 
@@ -263,8 +263,8 @@ class RbmNetwork(Network):
 
 
 def create_random_patternset(shape=(8,2), npatterns=5):
-    iset = [np.random.rand(*shape) for _ in range(npatterns)]
-    return Patternset(iset)
+    patterns = [np.random.rand(*shape) for _ in range(npatterns)]
+    return Patternset(patterns)
 
 def create_mnist_patternset(npatterns=None):
     print 'Loading %s MNIST patterns' % (str(npatterns) if npatterns else 'all')

@@ -2,7 +2,7 @@ from ipdb import set_trace as pause
 import numpy as np
 from random import shuffle
 
-from base import Network
+from base import Minibatch2, Network, Patternset
 from datasets import load_mnist
 from utils.utils import deriv_sigmoid, imagesc, sigmoid, sumsq, vec_to_arr
 
@@ -85,8 +85,9 @@ class BackpropNetwork(Network):
         (hidden) layer J to uppermost (output) layer K.
         """
         sensitivity_k = err_k * self.deriv_act_fn(inp_k)
-        d_w_jk = self.lrate * np.outer(act_j, sensitivity_k)
-        d_b_k = np.squeeze((self.lrate * sensitivity_k), axis=0)
+        d_w_jk = self.lrate * np.dot(act_j.T, sensitivity_k)
+        npatterns = act_j.shape[0]
+        d_b_k = np.mean(self.lrate * sensitivity_k, axis=0)
         return d_w_jk, d_b_k, sensitivity_k
 
     def delta_weights_middle(self, inp_j, w_jk, sensitivity_k, act_i):
@@ -96,9 +97,9 @@ class BackpropNetwork(Network):
         """
         # assert err_i.shape == inp_i.shape == act_i.shape
         sensitivity_j = self.deriv_act_fn(inp_j) * np.dot(w_jk, sensitivity_k.T).T
-        d_w_ij = self.lrate * np.outer(act_i, sensitivity_j)
+        d_w_ij = self.lrate * np.dot(act_i.T, sensitivity_j)
         # assert d_w_ij.shape == w_ij
-        d_b_j = np.squeeze((self.lrate * sensitivity_j), axis=0)
+        d_b_j = np.mean(self.lrate * sensitivity_j, axis=0)
         return d_w_ij, d_b_j, sensitivity_j
 
     def act_fn(self, x): return sigmoid(x)
@@ -109,9 +110,9 @@ class BackpropNetwork(Network):
 
 def arr_str(arr): return np.array_str(arr, precision=2)
 
-def test_epoch(net, data, verbose=True):
+def test_epoch(net, acts0, targets, verbose=True):
     errors = []
-    for act0, target in data:
+    for act0, target in zip(acts0, targets):
         error, out = net.test_trial(act0, target)
         errors.append(error)
         if verbose:
@@ -126,11 +127,12 @@ def data_xor():
             [[1,0], [1]],
             [[1,1], [0]]
             ]
-    for d,[a,t] in enumerate(data):
-        data[d] = (vec_to_arr(np.array(a)), vec_to_arr(np.array(t)))        
+    inputs = [vec_to_arr(np.array(a)) for a,t in data]
+    outputs = [vec_to_arr(np.array(t)) for a,t in data]
+    iset = Patternset(inputs)
+    oset = Patternset(outputs)
     net = BackpropNetwork([2, 2, 1], lrate=0.01)
-    # net = BackpropNetwork([2, 5, 1], lrate=0.01)
-    return net, data
+    return net, iset, oset
 
 def data_rand_autoencoder():
     data = []
@@ -138,27 +140,25 @@ def data_rand_autoencoder():
     nhidden = 12
     npatterns = 10
     for d in range(npatterns):
-        cur = np.random.uniform(size=(1,n_inp_out))
-        data.append((cur,cur))        
+        data.append(np.random.uniform(size=(1,n_inp_out)))
+    pset = Patternset(data)
     # net = BackpropNetwork([n_inp_out, nhidden, n_inp_out])
-    net = BackpropNetwork([n_inp_out, nhidden*2, nhidden, n_inp_out])
-    return net, data
+    net = BackpropNetwork([n_inp_out, nhidden*2, nhidden, n_inp_out], lrate=0.01)
+    return net, pset, pset
 
 
 if __name__ == "__main__":
     np.random.seed()
-    # net, data = data_xor()
-    net, data = data_rand_autoencoder()
+    net, iset, oset = data_xor()
+    # net, iset, oset = data_rand_autoencoder()
     nEpochs = 100000
+    n_in_minibatch = min(len(iset), 20)
     report_every = 1000
     for e in range(nEpochs):
-        cur_data = data[:]
-        shuffle(cur_data)
-        while cur_data:
-            act0, target = cur_data.pop()
-            net.learn_trial(act0, target)
+        act0, target = Minibatch2(iset, oset, n_in_minibatch).patterns
+        net.learn_trial(act0, target)
         if not e % report_every:
-            error, mean_error = test_epoch(net, data, False)
-        if mean_error < 0.001: break
-    errors, mean_error = test_epoch(net, data, True)
+            error, mean_error = test_epoch(net, iset.patterns, oset.patterns, False)
+        if mean_error < 0.01: break
+    errors, mean_error = test_epoch(net, iset.patterns, oset.patterns, True)
     pause()
