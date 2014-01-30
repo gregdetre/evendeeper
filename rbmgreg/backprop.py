@@ -43,10 +43,8 @@ class BackpropNetwork(Network):
 
     def learn_trial(self, act0, target):
         d_w, d_b = self.delta_weights(act0, target)
-        for cur_w, new_d_w, old_d_w in zip(self.w, d_w, self.d_w):
-            cur_w += new_d_w + self.momentum*old_d_w
-        for cur_b, new_d_b, old_d_b in zip(self.b, d_b, self.d_b):
-            cur_b += new_d_b + self.momentum*old_d_b
+        for cur, new, old in zip(self.w, d_w, self.d_w): cur += new + self.momentum*old
+        for cur, new, old in zip(self.b, d_b, self.d_b): cur += new + self.momentum*old
         self.d_w, self.d_b = d_w, d_b
 
     def delta_weights(self, act0, tgt):
