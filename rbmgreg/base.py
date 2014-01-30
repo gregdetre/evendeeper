@@ -2,6 +2,7 @@ from ipdb import set_trace as pause
 import numpy as np
 from random import sample
 
+from datasets import load_mnist
 from utils.utils import imagesc, isunique, vec_to_arr
 
 
@@ -84,3 +85,13 @@ class Minibatch2(object):
         self.patterns = self.ipatterns, self.opatterns
 
     def getmulti(self, idx): return self.iset.getmulti(idx), self.oset.getmulti(idx)
+
+
+def create_mnist_patternset(npatterns=None, ravel=False):
+    print 'Loading %s MNIST patterns' % (str(npatterns) if npatterns else 'all')
+    mnist_ds = load_mnist(filen='../rbm/minst_train.csv', nrows=npatterns)
+    if npatterns is not None: assert mnist_ds.X.shape[0] == npatterns
+    if ravel: pset = Patternset(mnist_ds.X, shape=(1,784))
+    else: pset = Patternset(mnist_ds.X, shape=(28,28))
+    print 'done'
+    return pset

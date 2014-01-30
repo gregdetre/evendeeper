@@ -2,8 +2,7 @@ from ipdb import set_trace as pause
 import numpy as np
 from random import shuffle
 
-from base import Minibatch2, Network, Patternset
-from datasets import load_mnist
+from base import create_mnist_patternset, Minibatch2, Network, Patternset
 from utils.utils import deriv_sigmoid, imagesc, sigmoid, sumsq, vec_to_arr
 
 
@@ -121,16 +120,23 @@ def rand_autoencoder(nhiddens=None, *args, **kwargs):
     pset = Patternset([np.random.uniform(size=(1,n_inp_out)) for d in range(npatterns)])
     return autoencoder(pset, nhiddens=nhiddens, *args, **kwargs)
 
+def mnist_autoencoder(npatterns=None, nhiddens=None, *args, **kwargs):
+    if nhiddens is None: nhiddens = [500]
+    pset = create_mnist_patternset(npatterns=npatterns, ravel=True)
+    return autoencoder(pset, nhiddens=nhiddens, *args, **kwargs)
+
 
 if __name__ == "__main__":
     np.random.seed()
     # net, iset, oset = xor(lrate=0.35)
-    net, iset, oset = rand_autoencoder(nhiddens=[24, 12], lrate=0.1)
+    # net, iset, oset = rand_autoencoder(nhiddens=[24, 12], lrate=0.1)
+    net, iset, oset = mnist_autoencoder(npatterns=None, nhiddens=[500], lrate=0.05)
     nEpochs = 2000 # 100000
     n_in_minibatch = min(len(iset), 20)
-    report_every = 1000
+    report_every = 1 # 1000
     for e in range(nEpochs):
         act0, target = Minibatch2(iset, oset, n_in_minibatch).patterns
+        # act0, target = act0.ravel(), target.ravel()
         net.learn_trial(act0, target)
         if not e % report_every:
             error, mean_error = test_epoch(net, iset.patterns, oset.patterns, False)
