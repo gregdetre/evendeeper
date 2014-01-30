@@ -109,8 +109,8 @@ class RbmNetwork(Network):
         return d_w, d_a, d_b
 
     def plot_layers(self, v_plus, ttl=None):
-        v_bias = net.a.reshape(self.v_shape)
-        h_bias = vec_to_arr(net.b)
+        v_bias = self.a.reshape(self.v_shape)
+        h_bias = vec_to_arr(self.b)
         h_plus_inp, h_plus_prob, h_plus_state, \
             v_minus_inp, v_minus_prob, v_minus_state, \
             h_minus_inp, h_minus_prob, h_minus_state = self.gibbs_step(v_plus)
