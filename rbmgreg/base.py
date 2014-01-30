@@ -1,3 +1,4 @@
+from ipdb import set_trace as pause
 import numpy as np
 from random import sample
 
@@ -21,9 +22,8 @@ class Network(object):
 
     def propagate_back(self, act2, w12, b1):
         # W = (N_LOWER x N_UPPER), ACT2 = (NPATTERNS x N_UPPER), B1 = (N_LOWER,)
-        inp1 = np.dot(w12, act2.T) + b1
+        inp1 = np.dot(act2, w12.T) + b1
         # return INP1 as (NPATTERNS x N_LOWER)
-        inp1 = inp1.T
         act1 = self.act_fn(inp1)
         return inp1, act1
 
