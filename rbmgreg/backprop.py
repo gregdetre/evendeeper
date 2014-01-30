@@ -11,96 +11,74 @@ class BackpropNetwork(Network):
     def __init__(self, layersizes, lrate=0.01, momentum=0.9):
         assert len(layersizes) >= 3 # incl inpout & output
         self.layersizes = layersizes
-        self.w = self.init_weights(scale=1)
-        self.d_w = [np.zeros_like(cur_w) for cur_w in self.w]
-        self.b = [np.zeros((n,)) for n in self.layersizes]
-        self.d_b = [np.zeros_like(cur_b) for cur_b in self.b]
+        self.w, self.d_w = self.init_weights(scale=1), self.init_weights(0)
+        self.b, self.d_b = self.init_biases(), self.init_biases()
         self.n_l = len(self.layersizes)
         self.momentum = momentum
         self.lrate = lrate
 
     def init_weights(self, scale=0.1):
-        return [np.random.normal(size=(n1,n2), scale=scale)
+        return [np.random.normal(size=(n1,n2), scale=scale) if scale else np.zeros((n1,n2))
                 for n1,n2 in zip(self.layersizes, self.layersizes[1:])]
 
-    def test_trial(self, act0, target):
+    def init_biases(self): return [np.zeros((n,)) for n in self.layersizes]
+
+    def test_trial(self, act0, tgt):
         inps, acts = self.propagate_fwd_all(act0)
-        out_act = acts[-1]
-        error = self.report_error(out_act, target)
-        return error, out_act
+        act_k = acts[-1]
+        err = self.report_error(act_k, tgt)
+        return err, act_k
 
     def propagate_fwd_all(self, act0):
-        acts = [act0]
-        inps = [act0]
-        for l_idx in range(self.n_l-1):
-            inp, act = self.propagate_fwd(l_idx, acts[-1])
-            inps.append(inp)
-            acts.append(act)
-        # pause()
+        inps, acts = [act0]*self.n_l, [act0]*self.n_l
+        for l in range(self.n_l-1):
+            inps[l+1], acts[l+1] = self.propagate_fwd(l, acts[l])
         return inps, acts
 
     def propagate_fwd(self, lowlayer_idx, act):
         w, b = self.w[lowlayer_idx], self.b[lowlayer_idx+1]
         return super(BackpropNetwork, self).propagate_fwd(act, w, b)
 
-    def report_error(self, actual, desired):
-        return np.sum((actual - desired)**2, axis=1)
+    def report_error(self, act_k, tgt): return np.sum((tgt - act_k)**2, axis=1)
 
     def learn_trial(self, act0, target):
         d_w, d_b = self.delta_weights(act0, target)
-        # self.w += d_w + self.momentum*self.d_w
         for cur_w, new_d_w, old_d_w in zip(self.w, d_w, self.d_w):
             cur_w += new_d_w + self.momentum*old_d_w
         for cur_b, new_d_b, old_d_b in zip(self.b, d_b, self.d_b):
             cur_b += new_d_b + self.momentum*old_d_b
         self.d_w, self.d_b = d_w, d_b
-        return self.d_w
 
-    def delta_weights(self, act0, tgt_k):
-        d_w = [np.zeros_like(cur_d_w) for cur_d_w in self.d_w]
-        d_b = [np.zeros_like(cur_d_b) for cur_d_b in self.d_b]
+    def delta_weights(self, act0, tgt):
+        d_w, d_b = self.init_weights(0), self.init_biases()
         inps, acts = self.propagate_fwd_all(act0)
-        act_k = acts[-1]
-        err_k = tgt_k - act_k
-        inp_k = inps[-1]
-        act_j = acts[-2]
-        l_idx_uppermost = self.n_l - 1
-        l_idx_penult = l_idx_uppermost - 1
-        d_w_jk, d_b_k, sensitivity_k = self.delta_weights_uppermost(err_k, inp_k, act_j)
-        d_w[l_idx_penult] = d_w_jk
-        d_b[l_idx_uppermost] = d_b_k
-        for l_idx_hidden in reversed(range(l_idx_penult)):
-            w_jk = self.w[l_idx_hidden+1]
-            inp_j = inps[l_idx_hidden+1]
-            act_i = acts[l_idx_hidden]
-            d_w_ij, d_b_j, sensitivity_j = self.delta_weights_middle(inp_j, w_jk, sensitivity_k, act_i)
-            d_w[l_idx_hidden] = d_w_ij
-            d_b[l_idx_hidden+1] = d_b_j
-            sensitivity_k = sensitivity_j # for use in the next iteration
+        j, k = self.n_l-2, self.n_l-1
+        sens = [None] * self.n_l # pre-initialize SENSitivity arrays
+        d_w[j], d_b[k], sens[k] = self.delta_w_jk(tgt-acts[k], inps[k], acts[j])
+        for i in reversed(range(self.n_l-2)):
+            j, k = i+1, i+2
+            d_w[i], d_b[j], sens[j] = self.delta_w_ij(inps[j], self.w[j], sens[k], acts[i])
         return d_w, d_b
 
-    def delta_weights_uppermost(self, err_k, inp_k, act_j):
+    def delta_w_jk(self, err_k, inp_k, act_j):
         """
         Changing W_JK, i.e. the weights from penultimate
         (hidden) layer J to uppermost (output) layer K.
         """
-        sensitivity_k = err_k * self.deriv_act_fn(inp_k)
-        d_w_jk = self.lrate * np.dot(act_j.T, sensitivity_k)
-        npatterns = act_j.shape[0]
-        d_b_k = np.mean(self.lrate * sensitivity_k, axis=0)
-        return d_w_jk, d_b_k, sensitivity_k
+        sens_k = err_k * self.deriv_act_fn(inp_k)
+        d_w_jk = self.lrate * np.dot(act_j.T, sens_k)
+        d_b_k = np.mean(self.lrate * sens_k, axis=0)
+        return d_w_jk, d_b_k, sens_k
 
-    def delta_weights_middle(self, inp_j, w_jk, sensitivity_k, act_i):
+    def delta_w_ij(self, inp_j, w_jk, sens_k, act_i):
         """
         Changing W_IJ, i.e. the weights from (input or
         hidden) layer I to next (hidden) layer J.
         """
-        # assert err_i.shape == inp_i.shape == act_i.shape
-        sensitivity_j = self.deriv_act_fn(inp_j) * np.dot(w_jk, sensitivity_k.T).T
-        d_w_ij = self.lrate * np.dot(act_i.T, sensitivity_j)
-        # assert d_w_ij.shape == w_ij
-        d_b_j = np.mean(self.lrate * sensitivity_j, axis=0)
-        return d_w_ij, d_b_j, sensitivity_j
+        sens_j = self.deriv_act_fn(inp_j) * np.dot(w_jk, sens_k.T).T
+        d_w_ij = self.lrate * np.dot(act_i.T, sens_j)
+        d_b_j = np.mean(self.lrate * sens_j, axis=0)
+        return d_w_ij, d_b_j, sens_j
 
     def act_fn(self, x): return sigmoid(x)
     def deriv_act_fn(self, x): return deriv_sigmoid(x)
@@ -138,18 +116,18 @@ def autoencoder(pset, nhiddens, *args, **kwargs):
     net = BackpropNetwork(layersizes, *args, **kwargs)
     return net, pset, pset
 
-def rand_autoencoder():
+def rand_autoencoder(nhiddens=None, *args, **kwargs):
     n_inp_out = 4
     npatterns = 10
-    nhiddens = [12]
+    if nhiddens is None: nhiddens = [12]
     pset = Patternset([np.random.uniform(size=(1,n_inp_out)) for d in range(npatterns)])
-    return autoencoder(pset, nhiddens=nhiddens)
+    return autoencoder(pset, nhiddens=nhiddens, *args, **kwargs)
 
 
 if __name__ == "__main__":
     np.random.seed()
-    # net, iset, oset = xor(lrate=0.1)
-    net, iset, oset = rand_autoencoder()
+    # net, iset, oset = xor(lrate=0.35)
+    net, iset, oset = rand_autoencoder(nhiddens=[24, 12], lrate=0.1)
     nEpochs = 2000 # 100000
     n_in_minibatch = min(len(iset), 20)
     report_every = 1000
@@ -160,4 +138,3 @@ if __name__ == "__main__":
             error, mean_error = test_epoch(net, iset.patterns, oset.patterns, False)
         if mean_error < 0.01: break
     errors, mean_error = test_epoch(net, iset.patterns, oset.patterns, True)
-    pause()
