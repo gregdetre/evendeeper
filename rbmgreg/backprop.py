@@ -62,56 +62,19 @@ class BackpropNetwork(Network):
         inps, acts = self.propagate_fwd_all(act0)
         act_k = acts[-1]
         err_k = tgt_k - act_k
-        errors = self.propagate_err_back_all(err_k)
         inp_k = inps[-1]
         act_j = acts[-2]
-        l_idx_upper = self.n_l - 1
-        l_idx_penult = l_idx_upper - 1
+        l_idx_penult = self.n_l - 2
         d_w_jk, sensitivity_k = self.delta_weights_uppermost(err_k, inp_k, act_j)
         d_w[l_idx_penult] = d_w_jk
-        w_jk = self.w[-1]
         for l_idx_hidden in reversed(range(l_idx_penult)):
-            w_ij = self.w[l_idx_hidden]
-            err_i = errors[l_idx_hidden]
+            w_jk = self.w[l_idx_hidden+1]
             inp_j = inps[l_idx_hidden+1]
-            inp_i = inps[l_idx_hidden]
             act_i = acts[l_idx_hidden]
             d_w_ij, sensitivity_j = self.delta_weights_middle(inp_j, w_jk, sensitivity_k, act_i)
             d_w[l_idx_hidden] = d_w_ij
+            sensitivity_k = sensitivity_j # for use in the next iteration
         return d_w
-
-#         errors.append(error)
-#         d_ws = []
-#         for l_idx in reversed(range(self.n_l-1)):
-#             l_act = acts[l_idx]
-#             u_act = acts[l_idx+1]
-#             # like PROPAGATE_BACK, but without bias or activation function
-#             w, b = self.w[l_idx], self.b[l_idx]
-#             d_w = np.zeros_like(w)
-#             # dn_error = np.dot(w, up_error) + b # xxx incl B???
-#             u_error = errors[-1]
-#             l_error = np.dot(w, u_error)
-#             errors.append(l_error)
-#             for i in range(self.layersizes[l_idx]): # NUM_LOWER
-#                 for j in range(self.layersizes[l_idx+1]): # NUM_UPPER
-#                     d_w[i,j] = self.lrate * u_error[j] * l_act[i]
-#             d_ws.append(d_w)
-#         # d_a, d_b =
-#         # we want to return D_WS bottom up
-#         return reversed(d_ws)
-
-    def propagate_err_back(self, err_j, w_ij): return np.dot(w_ij, err_j.T).T
-
-    def propagate_err_back_all(self, err_k):
-        errors = [err_k]
-        for l_idx in reversed(range(self.n_l-1)):
-            w_ij = self.w[l_idx]
-            err_j = errors[0]
-            assert w_ij.shape[1] == err_j.shape[1]
-            err_i = self.propagate_err_back(err_j, w_ij)
-            assert w_ij.shape[0] == err_i.shape[1]
-            errors.insert(0, err_i) # prepend, so ERRORS stores bottom-up
-        return errors
 
     def delta_weights_uppermost(self, err_k, inp_k, act_j):
         """
@@ -161,7 +124,7 @@ def data_xor():
     for d,[a,t] in enumerate(data):
         data[d] = (vec_to_arr(np.array(a)), vec_to_arr(np.array(t)))        
     # net = BackpropNetwork([2, 2, 1], lrate=0.01)
-    net = BackpropNetwork([2, 3, 1], lrate=0.01)
+    net = BackpropNetwork([2, 5, 1], lrate=0.01)
     return net, data
 
 def data_rand_autoencoder():
@@ -170,17 +133,17 @@ def data_rand_autoencoder():
     nhidden = 12
     npatterns = 10
     for d in range(npatterns):
-        # cur = np.random.normal(size=(1,n_inp_out))
         cur = np.random.uniform(size=(1,n_inp_out))
         data.append((cur,cur))        
-    net = BackpropNetwork([n_inp_out, nhidden, n_inp_out])
+    # net = BackpropNetwork([n_inp_out, nhidden, n_inp_out])
+    net = BackpropNetwork([n_inp_out, nhidden*2, nhidden, n_inp_out])
     return net, data
 
 
 if __name__ == "__main__":
     np.random.seed()
-    net, data = data_xor()
-    # net, data = data_rand_autoencoder()
+    # net, data = data_xor()
+    net, data = data_rand_autoencoder()
     nEpochs = 100000
     report_every = 1000
     for e in range(nEpochs):
