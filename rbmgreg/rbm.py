@@ -322,7 +322,7 @@ if __name__ == "__main__":
 
     for patnum in range(npatterns):
         pattern = pset.get(patnum).reshape(1, net.n_v)
-        error, _ = net.test_trial(pattern)
+        error, v_minus = net.test_trial(pattern)
         print 'End of training (E#%i), error = %.2f' % (n_train_epochs, error)
         pset.imshow(v_minus)
 
