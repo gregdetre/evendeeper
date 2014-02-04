@@ -71,16 +71,21 @@ class RbmNetwork(Network):
     def learn_trial(self, v_plus):
         n_in_minibatch = float(v_plus.shape[0])
 
-        # d_w, d_a, d_b = self.update_weights(v_plus)
-        # self.w += d_w + self.momentum*self.d_w
-        # self.a += d_a + self.momentum*self.d_a
-        # self.b += d_b + self.momentum*self.d_b
+        #d_w, d_a, d_b = self.update_weights(v_plus)
+        #self.w = self.w + d_w + self.momentum*self.d_w
+        #self.a = self.a + d_a + self.momentum*self.d_a
+        #self.b = self.b + d_b + self.momentum*self.d_b
 
         d_w, d_a, d_b = self.update_weights_pt(v_plus)
-        self.w = self.w + (self.lrate/n_in_minibatch)*d_w#d_w + self.momentum*self.d_w
-        self.a = self.a + (self.lrate/n_in_minibatch)*d_a #+ self.momentum*self.d_a
-        self.b = self.b + (self.lrate/n_in_minibatch)*d_b #+ self.momentum*self.d_b
+        self.w = self.w + d_w + self.momentum*self.d_w
+        self.a = self.a + d_a + self.momentum*self.d_a
+        self.b = self.b + d_b + self.momentum*self.d_b
+
+        #self.w = self.w + (self.lrate/n_in_minibatch)*d_w
+        #self.a = self.a + (self.lrate/n_in_minibatch)*d_a
+        #self.b = self.b + (self.lrate/n_in_minibatch)*d_b
         self.d_w, self.d_a, self.d_b = d_w, d_a, d_b
+
         return self.d_w, self.d_a, self.d_b
 
     def calculate_error(self, actual, desired):
@@ -119,7 +124,7 @@ class RbmNetwork(Network):
     def update_weights_pt(self, v_plus):
         M = 10 # number of parallel chains
 
-        T = np.arange(1, M+1)
+        T = np.arange(1, M+1) # linear
 
         d_w = np.zeros_like(self.w)
         d_a = np.zeros(shape=self.a.shape)
@@ -135,10 +140,15 @@ class RbmNetwork(Network):
             h_plus_states = []
             
             w_orig = self.w.copy() # backup weights
+            a_orig = self.a.copy() # backup visible bias
+            b_orig = self.b.copy() # backup hidden bias
 
             for m in range(M):
-               #pause()
+               # smoothing
                self.w = w_orig * T[m]
+               self.a = a_orig * T[m]
+               self.b = b_orig * T[m]
+               # perform CD1
                _, h_plus_act, h_plus_state, \
                    _, v_minus_act, v_minus_state, \
                    _, h_minus_act, _ = self.gibbs_step(v_sample)
@@ -165,17 +175,22 @@ class RbmNetwork(Network):
                     v[m], v[m-1] = v[m-1], v[m]
                     h[m], h[m-1] = h[m-1], h[m]
 
-            #pause()
-
             # update weights
-            d_w += np.dot(v_sample.T, h_plus_acts[0]) - \
-                        np.dot(v_minus_states[0].T, h_minus_acts[0])
-            d_a = d_a + v_sample - v_minus_states[0] # d_a is visible bias (b)
-            d_b = d_b + h_plus_acts[0] - h_minus_acts[0] # d_b is hidden bias (c)
+            d_a = d_a + self.lrate * (v_sample-v_minus_acts[0]) - \
+                    self.wcost * self.a
+            d_b = d_b + self.lrate * (h_plus_state[0]-h_minus_acts[0]) - \
+                    self.wcost * self.b
+            diff_plus_minus = np.dot(v_sample.T, h_plus_acts[0]) - np.dot(v_minus_acts[0].T, h_minus_acts[0])
+            d_w = d_w + self.lrate * (diff_plus_minus/n_in_minibatch - self.wcost*self.w)
 
-            self.w = w_orig.copy() # restore weights
+            #d_w += self.lrate * np.dot(v_sample.T, h_plus_acts[0]) - \
+            #            np.dot(v_minus_states[0].T, h_minus_acts[0])
+            #d_a = d_a + self.lrate * v_sample - v_minus_states[0] # d_a is visible bias (b)
+            #d_b = d_b + self.lrate * h_plus_acts[0] - h_minus_acts[0] # d_b is hidden bias (c)
 
-        #pause()
+            self.w = w_orig # restore weights
+            self.a = a_orig # restore visible bias
+            self.b = b_orig # restore hidden bias
 
         return d_w, d_a, d_b
 
@@ -185,7 +200,10 @@ class RbmNetwork(Network):
         return np.minimum(1, ratio)
 
     def energy_fn(self, v, h):
-        return - np.dot(np.dot(v, self.w), h.T) - np.vdot(v, self.a) - np.vdot(h, self.b)
+        E_w = np.dot(np.dot(v, self.w), h.T)
+        E_vbias = np.vdot(v, self.a)
+        E_hbias = np.vdot(h, self.b)
+        return - E_w - E_vbias - E_hbias
 
     def plot_layers(self, v_plus, ttl=None):
         v_bias = self.a.reshape(self.v_shape)
@@ -278,8 +296,8 @@ def create_mnist_patternset(npatterns=None):
 if __name__ == "__main__":
     np.random.seed()
 
-    lrate = 0.005
-    wcost = 0.0002
+    lrate = 0.005 # 0.0005
+    wcost = 0.0002 # 0.0002
     nhidden = 100
     npatterns = 10000
     train_minibatch_errors = []
