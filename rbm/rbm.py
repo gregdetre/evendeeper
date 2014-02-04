@@ -286,7 +286,7 @@ def create_random_patternset(shape=(8,2), npatterns=5):
 
 def create_mnist_patternset(npatterns=None):
     print 'Loading %s MNIST patterns' % (str(npatterns) if npatterns else 'all')
-    mnist_ds = load_mnist(filen='../rbm/minst_train.csv', nrows=npatterns)
+    mnist_ds = load_mnist(filen='../data/minst_train.csv', nrows=npatterns)
     if npatterns is not None: assert mnist_ds.X.shape[0] == npatterns
     pset = Patternset(mnist_ds.X, shape=(28,28))
     print 'done'
