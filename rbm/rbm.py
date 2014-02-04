@@ -1,171 +1,351 @@
+from ipdb import set_trace as pause
+from math import ceil, sqrt
+from matplotlib import pyplot as plt
+import matplotlib.gridspec as gridspec
 import numpy as np
+import random
 import time
 
-class BinaryRBM():
-    """
-    This class implements a binary Restricted Boltzman Machine (binary RBM). 
-    It follows the paper of Fischer A., Igel C.: "An introduction to Restricted 
-    Boltzman Machines", CIARP, pp 14 - 36, 2012
-    """
-    def __init__(self, size_visible_layer, size_hidden_layer, batch_size=10):
-        self.size_hidden = size_hidden_layer
-        self.size_visible = size_visible_layer
-        self.training_size = 0
-        self.batch_size = batch_size
+from base import Minibatch, Network, Patternset
+from datasets import load_mnist
+from utils.utils import imagesc, sigmoid, sumsq, vec_to_arr
 
-        self.weights = np.random.normal(0,0.01,size=(size_hidden_layer, size_visible_layer))
-        self.hidden_bias = np.zeros(shape=size_hidden_layer)
-        self.visible_bias = np.random.uniform(0,0.5,size=size_visible_layer)
-
-        # deltas that will be update during the process of calling update_contrasitve_divergence
-        self.delta_weights = np.zeros(shape=self.weights.shape)
-        self.delta_hidden_bias = np.zeros(shape=self.hidden_bias.shape)
-        self.delta_visible_bias = np.zeros(shape=self.visible_bias.shape)
+# TODO
+#
+# rename _act to _prob
+# check learning rate is right for numcases
+# create Epoch, TrainEpoch, TestEpoch, ValidationEpochadd 
+# PCD
+# validation crit
+# init vis bias with hinton practical tip
+# compare parameters
 
 
-    def initialize_weight_matrix(self, weight_matrix):
-        """
-        Initializes the weight matrix for this RBM. This is useful if this RBM 
-        is part of a larger network or should be initialized in a certain way.
+class RbmNetwork(Network):
+    def __init__(self, n_v, n_h, lrate, wcost, momentum, v_shape=None, plot=True):
+        self.n_v, self.n_h = n_v, n_h
+        self.lrate = lrate
+        self.w = self.init_weights(n_v, n_h)
+        self.a = np.zeros(shape=(n_v,)) # bias to visible
+        self.b = np.zeros(shape=(n_h,)) # bias to hidden
+        self.d_w = np.zeros(shape=self.w.shape)
+        self.d_a = np.zeros(shape=self.a.shape)
+        self.d_b = np.zeros(shape=self.b.shape)
+        self.v_shape = v_shape or (1,n_v)
+        self.wcost = wcost
+        self.momentum = momentum
 
-        @ param 1 weight_matrix is the weight matrix for initialization
-        """
-        if not (weight_matrix.shape == self.weights.shape):
-            raise Exception("Incorrect input size.")
+        self.fignum_layers = 1
+        self.fignum_weights = 2
+        self.fignum_dweights = 3
+        self.fignum_errors = 4
+        self.fignum_biases = 5
+        self.fignum_dbiases = 6
+        if plot:
+            plt.figure(figsize=(5,7), num=self.fignum_layers)
+            plt.figure(figsize=(9,6), num=self.fignum_weights) # 6,4
+            plt.figure(figsize=(9,6), num=self.fignum_dweights)
+            plt.figure(figsize=(3,2), num=self.fignum_errors)
+            plt.figure(figsize=(3,2), num=self.fignum_biases)
+            plt.figure(figsize=(3,2), num=self.fignum_dbiases)
 
-        self.weights = np.copy(weight_matrix)
+    def init_weights(self, n_v, n_h, scale=0.01):
+        # return np.random.uniform(size=(n_v, n_h), high=scale)
+        return np.random.normal(size=(n_v, n_h), loc=0, scale=scale)
 
-    def mini_batch_contrastive_divergence(self, data_matrix, learning_rate=0.1, momentum=0, weight_decay=0):
-        """
-        Performs k-step contrastive divergence on given batch
-        """
-        if not (data_matrix.shape == (self.batch_size,self.size_visible)):
-            raise Exception("Incorrect input size.")
+    def propagate_fwd(self, v):
+        return super(RbmNetwork, self).propagate_fwd(v, self.w, self.b)
 
-        # saving the old values for momentum calculations
-        old_delta_hidden_bias = self.delta_hidden_bias / float(self.batch_size)
-        old_delta_visible_bias = self.delta_visible_bias / float(self.batch_size)
-        old_delta_weights = self.delta_weights / float(self.batch_size)
+    def propagate_back(self, h):
+        return super(RbmNetwork, self).propagate_back(h, self.w, self.a)
 
-        # resetting the deltas
-        self.delta_weights = np.zeros(shape=self.weights.shape)
-        self.delta_hidden_bias = np.zeros(shape=self.hidden_bias.shape)
-        self.delta_visible_bias = np.zeros(shape=self.visible_bias.shape)
+    def act_fn(self, x): return sigmoid(x)
 
-        error = 0
-        for batch_index in xrange(self.batch_size):
-            start_t = time.clock()
-            error += self.update_contrastive_divergence(data_matrix[batch_index])
-            stop_t = time.clock()
-            print "CD_1 step (sec): %f" % (stop_t - start_t)
+    def test_trial(self, v_plus):
+        h_plus_inp, h_plus_prob,  = self.propagate_fwd(v_plus)
+        v_minus_inp, v_minus_prob = self.propagate_back(h_plus_prob)
+        # ERROR = (NPATTERNS,)
+        error = self.calculate_error(v_minus_prob, v_plus)
+        return error, v_minus_prob
 
-        start_t = time.clock()
-        # update hidden bias
-        self.hidden_bias += (learning_rate / float(self.batch_size)) * self.delta_hidden_bias - weight_decay \
-                            * self.hidden_bias + momentum * old_delta_hidden_bias
-        # update visible bias
-        self.visible_bias += (learning_rate / float(self.batch_size)) * self.delta_visible_bias - weight_decay \
-                            * self.visible_bias + momentum * old_delta_visible_bias
-        # update weights
-        self.weights += (learning_rate / float(self.batch_size)) * self.delta_weights \
-                            - weight_decay * self.weights + momentum * old_delta_weights
-        stop_t = time.clock()
-        print "Updating parameters (sec): %f" % (stop_t - start_t)
+    def learn_trial(self, v_plus):
+        n_in_minibatch = float(v_plus.shape[0])
 
-        return error / float(self.training_size)
+        #d_w, d_a, d_b = self.update_weights(v_plus)
+        #self.w = self.w + d_w + self.momentum*self.d_w
+        #self.a = self.a + d_a + self.momentum*self.d_a
+        #self.b = self.b + d_b + self.momentum*self.d_b
+
+        d_w, d_a, d_b = self.update_weights_pt(v_plus)
+        #self.w = self.w + d_w + self.momentum*self.d_w
+        #self.a = self.a + d_a + self.momentum*self.d_a
+        #self.b = self.b + d_b + self.momentum*self.d_b
+
+        self.w = self.w + (self.lrate/n_in_minibatch)*d_w
+        self.a = self.a + (self.lrate/n_in_minibatch)*d_a
+        self.b = self.b + (self.lrate/n_in_minibatch)*d_b
+        self.d_w, self.d_a, self.d_b = d_w, d_a, d_b
+
+        return self.d_w, self.d_a, self.d_b
+
+    def calculate_error(self, actual, desired):
+        return sumsq(actual - desired)
+
+    def gibbs_step(self, v_plus):
+        h_plus_inp, h_plus_prob = self.propagate_fwd(v_plus)
+        h_plus_state = self.samplestates(h_plus_prob)
+        v_minus_inp, v_minus_prob = self.propagate_back(h_plus_state)
+        v_minus_state = self.samplestates(v_minus_prob)
+        # h_minus_inp, h_minus_prob = self.propagate_fwd(v_minus_state)
+        h_minus_inp, h_minus_prob = self.propagate_fwd(v_minus_prob)
+        h_minus_state = self.samplestates(h_minus_prob)
+        return \
+            h_plus_inp, h_plus_prob, h_plus_state, \
+            v_minus_inp, v_minus_prob, v_minus_state, \
+            h_minus_inp, h_minus_prob, h_minus_state
+
+    def samplestates(self, x): 
+        return x > np.random.uniform(size=x.shape)
+
+    def update_weights(self, v_plus):
+        n_in_minibatch = float(v_plus.shape[0])
+        h_plus_inp, h_plus_prob, h_plus_state, \
+            v_minus_inp, v_minus_prob, v_minus_state, \
+            h_minus_inp, h_minus_prob, h_minus_state = self.gibbs_step(v_plus)
+        d_w = np.zeros(self.w.shape)
+        d_a = np.mean(self.lrate * (v_plus-v_minus_prob) - self.wcost * self.a,
+                      axis=0)
+        d_b = np.mean(self.lrate * (h_plus_state-h_minus_prob) - self.wcost * self.b,
+                      axis=0)
+        diff_plus_minus = np.dot(v_plus.T, h_plus_prob) - np.dot(v_minus_prob.T, h_minus_prob)
+        d_w = self.lrate * (diff_plus_minus/n_in_minibatch - self.wcost*self.w)
+        return d_w, d_a, d_b
+
+    def update_weights_pt(self, v_plus):
+        M = 10 # number of parallel chains
+
+        T = np.arange(1, M+1) # linear
+
+        d_w = np.zeros_like(self.w)
+        d_a = np.zeros(shape=self.a.shape)
+        d_b = np.zeros(shape=self.b.shape)
+
+        for x in range(v_plus.shape[0]):
+            v_sample = v_plus[x, :]
+            v_sample = v_sample.reshape((1,784))
+            h_plus_acts = []
+            v_minus_acts = []
+            h_minus_acts = []
+            v_minus_states = []
+            h_plus_states = []
+            
+            w_orig = self.w.copy() # backup weights
+            a_orig = self.a.copy() # backup visible bias
+            b_orig = self.b.copy() # backup hidden bias
+
+            for m in range(M):
+               # smoothing
+               self.w = w_orig * (1.0/T[m])
+               self.a = a_orig * (1.0/T[m])
+               self.b = b_orig * (1.0/T[m])
+               # perform CD1
+               _, h_plus_act, h_plus_state, \
+                   _, v_minus_act, v_minus_state, \
+                   _, h_minus_act, _ = self.gibbs_step(v_sample)
+               h_plus_acts.append(h_plus_act)
+               v_minus_acts.append(v_minus_act)
+               h_minus_acts.append(h_minus_act)
+               v_minus_states.append(v_minus_state)
+               h_plus_states.append(h_plus_state)
+
+            # swapping
+            for m in range(1, M, 2):
+                v = v_minus_acts
+                h = h_minus_acts
+                if self.metropolis_ratio(T[m], T[m-1], v[m], v[m-1], h[m], h[m-1]) \
+                    > np.random.uniform():
+                    v[m], v[m-1] = v[m-1], v[m]
+                    h[m], h[m-1] = h[m-1], h[m]
+
+            for m in range(2, M, 2):
+                v = v_minus_acts
+                h = h_minus_acts
+                if self.metropolis_ratio(T[m], T[m-1], v[m], v[m-1], h[m], h[m-1]) \
+                    > np.random.uniform():
+                    v[m], v[m-1] = v[m-1], v[m]
+                    h[m], h[m-1] = h[m-1], h[m]
+
+            # update weights
+            #d_a = d_a + self.lrate * (v_sample-v_minus_acts[0]) - \
+            #        self.wcost * self.a
+            #d_b = d_b + self.lrate * (h_plus_state[0]-h_minus_acts[0]) - \
+            #        self.wcost * self.b
+            #diff_plus_minus = np.dot(v_sample.T, h_plus_acts[0]) - np.dot(v_minus_acts[0].T, h_minus_acts[0])
+            #d_w = d_w + self.lrate * (diff_plus_minus/n_in_minibatch - self.wcost*self.w)
+
+            d_w = d_w + np.dot(v_sample.T, h_plus_acts[0]) - \
+                        np.dot(v_minus_states[0].T, h_minus_acts[0])
+            d_a = d_a + v_sample - v_minus_states[0] # d_a is visible bias (b)
+            d_b = d_b + h_plus_acts[0] - h_minus_acts[0] # d_b is hidden bias (c)
+
+            self.w = w_orig # restore weights
+            self.a = a_orig # restore visible bias
+            self.b = b_orig # restore hidden bias
+
+        return d_w, d_a, d_b
+
+    def metropolis_ratio(self, T_curr, T_prev, v_curr, v_prev, h_curr, h_prev):
+        ratio = ((1.0/T_curr)-(1.0/T_prev)) * (self.energy_fn(v_curr, h_curr) - \
+                        self.energy_fn(v_prev, h_prev))
+        return np.minimum(1, ratio)
+
+    def energy_fn(self, v, h):
+        E_w = np.dot(np.dot(v, self.w), h.T)
+        E_vbias = np.vdot(v, self.a)
+        E_hbias = np.vdot(h, self.b)
+        return - E_w - E_vbias - E_hbias
+
+    def plot_layers(self, v_plus, ttl=None):
+        v_bias = self.a.reshape(self.v_shape)
+        h_bias = vec_to_arr(self.b)
+        h_plus_inp, h_plus_prob, h_plus_state, \
+            v_minus_inp, v_minus_prob, v_minus_state, \
+            h_minus_inp, h_minus_prob, h_minus_state = self.gibbs_step(v_plus)
+        lmin, lmax = None, None
+
+        v_plus = v_plus.reshape(self.v_shape)
+        h_plus_inp = vec_to_arr(h_plus_inp)*1.
+        h_plus_prob = vec_to_arr(h_plus_prob)*1.
+        h_plus_state = vec_to_arr(h_plus_state)*1.
+        v_minus_inp = v_minus_inp.reshape(self.v_shape)
+        v_minus_prob = v_minus_prob.reshape(self.v_shape)
+        v_minus_state = v_minus_state.reshape(self.v_shape)
+        h_minus_inp = vec_to_arr(h_minus_inp)*1.
+        h_minus_prob = vec_to_arr(h_minus_prob)*1.
+        h_minus_state = vec_to_arr(h_minus_state)*1.
+
+        # fig = plt.figure(figsize=(6,9))
+        # fig = plt.gcf()
+        fig = plt.figure(self.fignum_layers)
+        plt.clf()
+        if ttl: fig.suptitle(ttl)
+        gs = gridspec.GridSpec(16,2)
+        # top left downwards
+        ax = fig.add_subplot(gs[    0,0]); im = imagesc(h_plus_state, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_plus_state')
+        ax = fig.add_subplot(gs[    1,0]); im = imagesc(h_plus_prob, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_plus_prob')
+        ax = fig.add_subplot(gs[    2,0]); im = imagesc(h_plus_inp, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_plus_inp')
+        ax = fig.add_subplot(gs[ 5: 8,0]); im = imagesc(v_plus, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_plus'); fig.colorbar(im) # , ticks=[lmin, lmax])
+        # top right downwards
+        ax = fig.add_subplot(gs[    0,1]); im = imagesc(h_minus_state, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_minus_state')
+        ax = fig.add_subplot(gs[    1,1]); im = imagesc(h_minus_prob, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_minus_prob')
+        ax = fig.add_subplot(gs[    2,1]); im = imagesc(h_minus_inp, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('h_minus_inp')
+        ax = fig.add_subplot(gs[ 5: 8,1]); im = imagesc(v_minus_state*1, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_minus_state'); fig.colorbar(im) # , ticks=[lmin, lmax])
+        ax = fig.add_subplot(gs[ 9:12,1]); im = imagesc(v_minus_prob*1, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_minus_prob'); fig.colorbar(im) # , ticks=[lmin, lmax])
+        ax = fig.add_subplot(gs[13:16,1]); im = imagesc(v_minus_inp*1, dest=ax, vmin=lmin, vmax=lmax); ax.set_title('v_minus_inp'); fig.colorbar(im) # , ticks=[lmin, lmax])
+        plt.draw()
+
+    def plot_biases(self, v_bias, h_bias, fignum, ttl=None):
+        vmin = None # min(map(min, [v_bias, h_bias]))
+        vmax = None # max(map(max, [v_bias, h_bias]))
+        v_bias = v_bias.reshape(self.v_shape)
+        h_bias = vec_to_arr(h_bias)
+        fig = plt.figure(fignum)
+        plt.clf()
+        if ttl: fig.suptitle(ttl + '. range=%.2f to %.2f' % (vmin or float('NaN'), vmax or float('NaN')))
+        gs = gridspec.GridSpec(1,2)
+        ax = fig.add_subplot(gs[0,0]); im = imagesc(v_bias.reshape(self.v_shape), dest=ax, vmin=vmin, vmax=vmax); ax.set_title('v bias'); fig.colorbar(im)
+        ax = fig.add_subplot(gs[0,1]); im = imagesc(h_bias, dest=ax, vmin=vmin, vmax=vmax); ax.set_title('h bias'); fig.colorbar(im)
+        plt.draw()
+
+    def plot_weights(self, w, fignum, ttl=None):
+        vmin, vmax = min(w.ravel()), max(w.ravel())
+        fig = plt.figure(fignum)
+        plt.clf()
+        if ttl: fig.suptitle(ttl + '. range=%.2f to %.2f' % (vmin, vmax))
+        nsubplots = int(ceil(sqrt(self.n_h)))
+        gs = gridspec.GridSpec(nsubplots, nsubplots)
+        for hnum in range(self.n_h):
+            x,y = divmod(hnum, nsubplots)
+            ax = fig.add_subplot(gs[x,y])
+            im = imagesc(w[:,hnum].reshape(self.v_shape), dest=ax, vmin=vmin, vmax=vmax)
+            # ax.set_title('to H#%i' % hnum)
+        fig.colorbar(im)
+        plt.draw()
+    
+    def plot_errors(self, errors):
+        plt.figure(self.fignum_errors)
+        plt.clf()
+        plt.plot(errors)
+        plt.ylim(ymin=0, ymax=max(errors)*1.1)
+        plt.draw()
 
 
-    def update_contrastive_divergence(self, v_0):
-        """
-        Computes deltas
+def create_random_patternset(shape=(8,2), npatterns=5):
+    patterns = [np.random.rand(*shape) for _ in range(npatterns)]
+    return Patternset(patterns)
 
-        @ param data_array: a dataset of class Dataset from datasets.py used for training
-        """
-        self.training_size += 1
+def create_mnist_patternset(npatterns=None):
+    print 'Loading %s MNIST patterns' % (str(npatterns) if npatterns else 'all')
+    mnist_ds = load_mnist(filen='../rbm/minst_train.csv', nrows=npatterns)
+    if npatterns is not None: assert mnist_ds.X.shape[0] == npatterns
+    pset = Patternset(mnist_ds.X, shape=(28,28))
+    print 'done'
+    return pset
 
-        # Gibbs sampling step
-        v_k = self.gibbs_sample(v_start=v_0)
 
-        # Obtain P(H_i = 1 | v)
-        probs_0 = self.get_hidden_probs(v_0)
-        probs_k = self.get_hidden_probs(v_k)
+if __name__ == "__main__":
+    np.random.seed()
 
-        #hidden bias gradient update
-        self.delta_hidden_bias += probs_0 - probs_k
+    lrate = 0.001 # 0.015 
+    wcost = 0.0002 # 0.0002
+    nhidden = 100
+    npatterns = 10000
+    train_minibatch_errors = []
+    n_train_epochs = 100000
+    plot_every_n = 500
+    should_plot = lambda n: not n % plot_every_n # e.g. 0, 100, 200, 300, 400, ...
+    # plot_every_logn = 10
+    # should_plot = lambda n: log(n,plot_every_logn).is_integer() # e.g. 10th, 100th, 1000th, 10000th, ...
+    n_in_minibatch = 20
+    momentum = 0.5
 
-        # visible bias gradient update
-        self.delta_visible_bias += v_0 - v_k
+    # pset = create_random_patternset(npatterns=npatterns)
+    pset = create_mnist_patternset(npatterns=npatterns)
 
-        # weight gradient update
-        for i in xrange(self.size_hidden):
-            self.delta_weights[i] += probs_0[i] * v_0 - probs_k[i] * v_k
+    net = RbmNetwork(np.prod(pset.shape), nhidden, lrate, wcost, momentum, v_shape=pset.shape)
+    # pset = create_random_patternset()
+    print net
+    print pset
 
-        return np.sum(np.absolute(v_0 - v_k))
+    for epochnum in range(n_train_epochs):
+        minibatch = Minibatch(pset, n_in_minibatch)
 
-    def gibbs_sample(self, v_start, k=1):
-        """
-        Performs block Gibbs sampling k-times
-        """
-        # init the sampler
-        h_t = self.get_hidden_state(v_in=v_start)
+        [d_w, d_a, d_b] = net.learn_trial(minibatch.patterns)
+        errors, _ = net.test_trial(minibatch.patterns)
+        assert errors.shape == (n_in_minibatch,)
+        minibatch_error = np.mean(errors)
+        train_minibatch_errors.append(minibatch_error)
 
-        # block sampling (remind conditional independence must hold)
-        for i in xrange(k):
-            v_t = self.get_visible_state(h_in=h_t)
-            h_t = self.get_hidden_state(v_in=v_t)
+        msg = 'At E#%i, error = %.2f' % (epochnum, minibatch_error)
+        print msg
+        
+        if should_plot(epochnum):
+            pattern0 = minibatch.patterns[0].reshape(1, net.n_v)
+            net.plot_layers(pattern0, ttl=msg)
+            # net.plot_weights(net.w, net.fignum_weights, 'Weights to hidden at E#%i' % epochnum)
+            # net.plot_weights(d_w, net.fignum_dweights, 'D weights to hidden at E#%i' % epochnum)
+            net.plot_errors(train_minibatch_errors)
+            # net.plot_biases(net.a, net.b, net.fignum_biases, 'Biases at E#%i' % epochnum)
+            # net.plot_biases(d_a, d_b, net.fignum_dbiases, 'D biases at E#%i' % epochnum)
 
-        return v_t
+    for patnum in range(npatterns):
+        pattern = pset.get(patnum).reshape(1, net.n_v)
+        error, v_minus = net.test_trial(pattern)
+        print 'End of training (E#%i), error = %.2f' % (n_train_epochs, error)
+        pset.imshow(v_minus)
 
-    def get_hidden_state(self, v_in):
-        """
-        Samples hidden states (remember: states are binary at this point)
+    print '  '.join(['%.2f' % error for error in train_minibatch_errors])
+    plt.figure()
+    net.plot_errors(train_minibatch_errors)
+    pause()
 
-        Returns values from a sigmoid activation function inline and for an 
-        entire vector.
-        Activation function: P(H_i = 1 | v) = sigm(sum_j=1_m(w_i_j * v_j + c_i))
-
-        @ param v_in: visible unit vector to obtain hidden probabilits
-        @ param h_out: vector holding the hidden state
-        """
-        return self.get_hidden_probs(v_in) > np.random.uniform(low=0.0,high=1.0,size=self.size_hidden)
-
-    def get_hidden_probs(self, v_in):
-        """
-        Calculates P(H_i = 1 | v) = sigm(sum_j=1_m(w_i_j * v_j + c_i))
-        """
-        probs = np.zeros(self.size_hidden)
-        for i in xrange(self.size_hidden):
-            inner_sum = 0
-            for j in xrange(self.size_visible):
-                inner_sum += self.weights[i][j] * v_in[j] + self.hidden_bias[i]
-            probs[i] = self.sigmoid_activation(inner_sum)
-
-        return probs
-
-    def get_visible_state(self, h_in):
-        """
-        Samples visible states (remember: states are binary at this point)
-        """
-        return self.get_visible_probs(h_in) > np.random.uniform(low=0.0,high=1.0,size=self.size_visible)
-
-    def get_visible_probs(self, h_in):
-        """
-        Calculates P(V_j = 1 | h) = sigm(sum_i=1_n(w_i_j * h_i + b_j))
-        """
-        probs = np.zeros(self.size_visible)
-        for j in xrange(self.size_visible):
-            inner_sum = 0
-            for i in xrange(self.size_hidden):
-                inner_sum += self.weights[i][j] * h_in[i] + self.visible_bias[j]
-            probs[j] = self.sigmoid_activation(inner_sum)
-
-        return probs
-
-    def sigmoid_activation(self, x):
-        """
-        Computes sigmoid function for given x
-        """
-        return 1.0 / (1.0 + np.exp(-1.0 * x))
-
-    def get_free_energy(self):
-        pass
