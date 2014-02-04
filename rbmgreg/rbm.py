@@ -77,13 +77,13 @@ class RbmNetwork(Network):
         #self.b = self.b + d_b + self.momentum*self.d_b
 
         d_w, d_a, d_b = self.update_weights_pt(v_plus)
-        self.w = self.w + d_w + self.momentum*self.d_w
-        self.a = self.a + d_a + self.momentum*self.d_a
-        self.b = self.b + d_b + self.momentum*self.d_b
+        #self.w = self.w + d_w + self.momentum*self.d_w
+        #self.a = self.a + d_a + self.momentum*self.d_a
+        #self.b = self.b + d_b + self.momentum*self.d_b
 
-        #self.w = self.w + (self.lrate/n_in_minibatch)*d_w
-        #self.a = self.a + (self.lrate/n_in_minibatch)*d_a
-        #self.b = self.b + (self.lrate/n_in_minibatch)*d_b
+        self.w = self.w + (self.lrate/n_in_minibatch)*d_w
+        self.a = self.a + (self.lrate/n_in_minibatch)*d_a
+        self.b = self.b + (self.lrate/n_in_minibatch)*d_b
         self.d_w, self.d_a, self.d_b = d_w, d_a, d_b
 
         return self.d_w, self.d_a, self.d_b
@@ -145,9 +145,9 @@ class RbmNetwork(Network):
 
             for m in range(M):
                # smoothing
-               self.w = w_orig * T[m]
-               self.a = a_orig * T[m]
-               self.b = b_orig * T[m]
+               self.w = w_orig * (1.0/T[m])
+               self.a = a_orig * (1.0/T[m])
+               self.b = b_orig * (1.0/T[m])
                # perform CD1
                _, h_plus_act, h_plus_state, \
                    _, v_minus_act, v_minus_state, \
@@ -176,17 +176,17 @@ class RbmNetwork(Network):
                     h[m], h[m-1] = h[m-1], h[m]
 
             # update weights
-            d_a = d_a + self.lrate * (v_sample-v_minus_acts[0]) - \
-                    self.wcost * self.a
-            d_b = d_b + self.lrate * (h_plus_state[0]-h_minus_acts[0]) - \
-                    self.wcost * self.b
-            diff_plus_minus = np.dot(v_sample.T, h_plus_acts[0]) - np.dot(v_minus_acts[0].T, h_minus_acts[0])
-            d_w = d_w + self.lrate * (diff_plus_minus/n_in_minibatch - self.wcost*self.w)
+            #d_a = d_a + self.lrate * (v_sample-v_minus_acts[0]) - \
+            #        self.wcost * self.a
+            #d_b = d_b + self.lrate * (h_plus_state[0]-h_minus_acts[0]) - \
+            #        self.wcost * self.b
+            #diff_plus_minus = np.dot(v_sample.T, h_plus_acts[0]) - np.dot(v_minus_acts[0].T, h_minus_acts[0])
+            #d_w = d_w + self.lrate * (diff_plus_minus/n_in_minibatch - self.wcost*self.w)
 
-            #d_w += self.lrate * np.dot(v_sample.T, h_plus_acts[0]) - \
-            #            np.dot(v_minus_states[0].T, h_minus_acts[0])
-            #d_a = d_a + self.lrate * v_sample - v_minus_states[0] # d_a is visible bias (b)
-            #d_b = d_b + self.lrate * h_plus_acts[0] - h_minus_acts[0] # d_b is hidden bias (c)
+            d_w = d_w + np.dot(v_sample.T, h_plus_acts[0]) - \
+                        np.dot(v_minus_states[0].T, h_minus_acts[0])
+            d_a = d_a + v_sample - v_minus_states[0] # d_a is visible bias (b)
+            d_b = d_b + h_plus_acts[0] - h_minus_acts[0] # d_b is hidden bias (c)
 
             self.w = w_orig # restore weights
             self.a = a_orig # restore visible bias
@@ -296,7 +296,7 @@ def create_mnist_patternset(npatterns=None):
 if __name__ == "__main__":
     np.random.seed()
 
-    lrate = 0.005 # 0.0005
+    lrate = 0.001 # 0.015 
     wcost = 0.0002 # 0.0002
     nhidden = 100
     npatterns = 10000
