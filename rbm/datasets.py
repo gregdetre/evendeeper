@@ -1,5 +1,4 @@
 import csv, numpy
-from pyparsing import delimitedList
 
 
 class Dataset(dict):
@@ -7,23 +6,23 @@ class Dataset(dict):
         dict.__init__(self, kwargs)
         self.__dict__ = self
 
-def load_minst(test=True):
+def load_mnist(nrows=None, filen='../data/mnist_train.csv'):
     """
     Reads in the MNIST dataset and returns a Dataset object which holds the data 
     along with metadata from the files specified
     """
-    filename = 'minst_test.csv' if test else 'minst_train.csv'
     data = []
     cols = 0
     rows = 0
-    with open(filename, 'r') as csvfile:
+    with open(filen, 'r') as csvfile:
         csvreader = csv.reader(csvfile, dialect='excel', delimiter=',');
         for line in csvreader:
             data.extend(line)
             if cols == 0:
                 cols = len(line)
             rows += 1
+            if nrows is not None and rows >= nrows: break
 
     data = numpy.reshape(numpy.array(data,dtype=int), newshape=(rows,cols))
 
-    return Dataset(X = data, name = 'minst_test', num_obs = rows, inputs = cols)
+    return Dataset(X = data, name = 'mnist_test', num_obs = rows, inputs = cols)
