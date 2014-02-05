@@ -34,5 +34,9 @@ def deriv_sigmoid(x):
     return s * (1 - s)
 
 def sumsq(x): return np.sum(x**2, axis=1)
+def tanh(x): return np.tanh(x)
+
+def deriv_tanh(x): return 1. - np.power(tanh(x), 2)
+
 
 def vec_to_arr(x): return x.reshape(1, x.size)
