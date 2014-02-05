@@ -87,9 +87,10 @@ class Minibatch2(object):
     def getmulti(self, idx): return self.iset.getmulti(idx), self.oset.getmulti(idx)
 
 
-def create_mnist_patternset(npatterns=None, ravel=False):
+def create_mnist_patternset(npatterns=None, ravel=False, zero_to_negone=False):
     print 'Loading %s MNIST patterns' % (str(npatterns) if npatterns else 'all')
     mnist_ds = load_mnist(filen='../rbm/minst_train.csv', nrows=npatterns)
+    if zero_to_negone: mnist_ds.X[mnist_ds.X==0] = -1
     if npatterns is not None: assert mnist_ds.X.shape[0] == npatterns
     if ravel: pset = Patternset(mnist_ds.X, shape=(1,784))
     else: pset = Patternset(mnist_ds.X, shape=(28,28))
