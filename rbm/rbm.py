@@ -1,3 +1,4 @@
+from copy import copy
 from ipdb import set_trace as pause
 from math import ceil, sqrt
 from matplotlib import pyplot as plt
@@ -117,73 +118,97 @@ class RbmNetwork(Network):
     def update_weights_pt(self, v_plus):
         M = 10 # number of parallel chains
 
+        n_mb = v_plus.shape[0]
+
         T = np.arange(1, M+1) # linear
+        invT = 1.0/np.arange(1, M+1) # linear
 
         d_w = np.zeros_like(self.w)
         d_a = np.zeros(shape=self.a.shape)
         d_b = np.zeros(shape=self.b.shape)
 
-        for x in range(v_plus.shape[0]):
-            v_sample = v_plus[x, :]
-            v_sample = v_sample.reshape((1,784))
-            h_plus_acts = []
-            v_minus_acts = []
-            h_minus_acts = []
-            v_minus_states = []
-            h_plus_states = []
-            
-            w_orig = self.w.copy() # backup weights
-            a_orig = self.a.copy() # backup visible bias
-            b_orig = self.b.copy() # backup hidden bias
+        h_minus_acts = np.zeros((M, n_mb, self.n_h))
+        h_plus_acts = np.zeros((M, n_mb, self.n_h))
+        v_minus_acts = np.zeros((M, n_mb, self.n_v))
+        v_minus_states = np.zeros((M, n_mb, self.n_v))
+        h_plus_states = np.zeros((M, n_mb, self.n_h))
+        
+        w_orig = self.w.copy() # backup weights
+        a_orig = self.a.copy() # backup visible bias
+        b_orig = self.b.copy() # backup hidden bias
 
-            for m in range(M):
-               # smoothing
-               self.w = w_orig * (1.0/T[m])
-               self.a = a_orig * (1.0/T[m])
-               self.b = b_orig * (1.0/T[m])
-               # perform CD1
-               _, h_plus_act, h_plus_state, \
-                   _, v_minus_act, v_minus_state, \
-                   _, h_minus_act, _ = self.gibbs_step(v_sample)
-               h_plus_acts.append(h_plus_act)
-               v_minus_acts.append(v_minus_act)
-               h_minus_acts.append(h_minus_act)
-               v_minus_states.append(v_minus_state)
-               h_plus_states.append(h_plus_state)
+        for m in range(M):
+           # smoothing
+           self.w = w_orig * (1.0/T[m])
+           self.a = a_orig * (1.0/T[m])
+           self.b = b_orig * (1.0/T[m])
+           # perform CD1
+           _, h_plus_act, h_plus_state, \
+               _, v_minus_act, v_minus_state, \
+               _, h_minus_act, _ = self.gibbs_step(v_plus)
+           h_plus_states[m] = h_plus_state
+           h_plus_acts[m] = h_plus_act
+           v_minus_acts[m] = v_minus_act
+           v_minus_states[m] = v_minus_state
+           h_minus_acts[m] = h_minus_act
 
-            # swapping
-            for m in range(1, M, 2):
-                v = v_minus_acts
-                h = h_minus_acts
-                if self.metropolis_ratio(T[m], T[m-1], v[m], v[m-1], h[m], h[m-1]) \
-                    > np.random.uniform():
-                    v[m], v[m-1] = v[m-1], v[m]
-                    h[m], h[m-1] = h[m-1], h[m]
+        # swapping
+        for m in range(1, M, 2):
+            v = v_minus_acts
+            h = h_minus_acts
 
-            for m in range(2, M, 2):
-                v = v_minus_acts
-                h = h_minus_acts
-                if self.metropolis_ratio(T[m], T[m-1], v[m], v[m-1], h[m], h[m-1]) \
-                    > np.random.uniform():
-                    v[m], v[m-1] = v[m-1], v[m]
-                    h[m], h[m-1] = h[m-1], h[m]
+            def dofor(ratio, rand, v_orig, h_orig):
+                v = copy(v_orig)
+                h = copy(h_orig)
+                for n in range(ratio.shape[0]):
+                    if ratio[n] > rand[n]:
+                        v[m][n], v[m-1][n] = v[m-1][n], v[m][n]
+                        h[m][n], h[m-1][n] = h[m-1][n], h[m][n]
+                return v,h
 
-            # update weights
-            #d_a = d_a + self.lrate * (v_sample-v_minus_acts[0]) - \
-            #        self.wcost * self.a
-            #d_b = d_b + self.lrate * (h_plus_state[0]-h_minus_acts[0]) - \
-            #        self.wcost * self.b
-            #diff_plus_minus = np.dot(v_sample.T, h_plus_acts[0]) - np.dot(v_minus_acts[0].T, h_minus_acts[0])
-            #d_w = d_w + self.lrate * (diff_plus_minus/n_in_minibatch - self.wcost*self.w)
+            def domat(ratio, rand, v_orig, h_orig):
+                v = copy(v_orig)
+                h = copy(h_orig)
+                # RGR = RATIO_GT_RAND = is RATIO >
+                # RAND?. we're going to convert to ints
+                # (i.e. 0 and 1), so that we can use it for indexing
+                rgr = (ratio > rand).astype(int)
+                rgr_ix = rgr.nonzero()
+                v[m-rgr,rgr_ix,:], v[m-(1-rgr),rgr_ix,:] = v[m-(1-rgr),rgr_ix,:], v[m-rgr,rgr_ix,:]
+                h[m-rgr,rgr_ix,:], h[m-(1-rgr),rgr_ix,:] = h[m-(1-rgr),rgr_ix,:], h[m-rgr,rgr_ix,:]
+                return v,h
 
-            d_w = d_w + np.dot(v_sample.T, h_plus_acts[0]) - \
-                        np.dot(v_minus_states[0].T, h_minus_acts[0])
-            d_a = d_a + v_sample - v_minus_states[0] # d_a is visible bias (b)
-            d_b = d_b + h_plus_acts[0] - h_minus_acts[0] # d_b is hidden bias (c)
+            ratio = self.metropolis_ratio(invT[m], invT[m-1], v[m], v[m-1], h[m], h[m-1])
+            rand = np.random.uniform(size=ratio.shape)
+            v1, h1 = dofor(ratio, rand, v, h)
+            v2, h2 = domat(ratio, rand, v, h)
+            assert np.array_equal(v1, v2)
+            assert np.array_equal(h1, h2)
+            v, h = v1, h1
 
-            self.w = w_orig # restore weights
-            self.a = a_orig # restore visible bias
-            self.b = b_orig # restore hidden bias
+        for m in range(2, M, 2):
+            v = v_minus_acts
+            h = h_minus_acts
+            ratio = self.metropolis_ratio(invT[m], invT[m-1], v[m], v[m-1], h[m], h[m-1])
+            for n in range(ratio.shape[0]):
+                if ratio[n] > np.random.uniform():
+                    v[m][n], v[m-1][n] = v[m-1][n], v[m][n]
+                    h[m][n], h[m-1][n] = h[m-1][n], h[m][n]
+
+        #d_w = d_w + self.lrate * (diff_plus_minus/n_in_minibatch - self.wcost*self.w)
+        #d_a = d_a + self.lrate * (v_sample-v_minus_acts[0]) - \
+        #        self.wcost * self.a
+        #d_b = d_b + self.lrate * (h_plus_state[0]-h_minus_acts[0]) - \
+        #        self.wcost * self.b
+        diff_plus_minus = np.dot(v_plus.T, h_plus_acts[0]) - np.dot(v_minus_acts[0].T, h_minus_acts[0])
+  
+        d_w = d_w + diff_plus_minus
+        d_a = d_a + np.mean(v_plus - v_minus_states[0], axis=0) # d_a is visible bias (b)
+        d_b = d_b + np.mean(h_plus_acts[0] - h_minus_acts[0], axis=0) # d_b is hidden bias (c)
+
+        self.w = w_orig # restore weights
+        self.a = a_orig # restore visible bias
+        self.b = b_orig # restore hidden bias
 
         return d_w, d_a, d_b
 
