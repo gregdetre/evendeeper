@@ -49,10 +49,10 @@ class RbmNetwork(Network):
         if self.plot:
             plt.figure(figsize=(5,7), num=self.fignum_layers)
             plt.figure(figsize=(9,6), num=self.fignum_weights) # 6,4
-            plt.figure(figsize=(9,6), num=self.fignum_dweights)
+            # plt.figure(figsize=(9,6), num=self.fignum_dweights)
             plt.figure(figsize=(3,2), num=self.fignum_errors)
             plt.figure(figsize=(3,2), num=self.fignum_biases)
-            plt.figure(figsize=(3,2), num=self.fignum_dbiases)
+            # plt.figure(figsize=(3,2), num=self.fignum_dbiases)
 
     def init_weights(self, n_v, n_h, scale=0.01):
         # return np.random.uniform(size=(n_v, n_h), high=scale)
@@ -76,9 +76,9 @@ class RbmNetwork(Network):
     def learn_trial(self, v_plus):
         n_in_minibatch = float(v_plus.shape[0])
 
-        # d_w, d_a, d_b = self.update_weights(v_plus)
+        d_w, d_a, d_b = self.update_weights(v_plus)
 
-        d_w, d_a, d_b = self.update_weights_pt(v_plus)
+        # d_w, d_a, d_b = self.update_weights_pt(v_plus)
 
         d_w = (self.lrate/n_in_minibatch)*(d_w - self.wcost*self.w) + self.momentum*self.d_w
         d_a = (self.lrate/n_in_minibatch)*(d_a - self.wcost*self.a) + self.momentum*self.d_a
@@ -332,23 +332,24 @@ def create_random_patternset(shape=(8,2), npatterns=5):
 if __name__ == "__main__":
     np.random.seed()
 
-    lrate = 0.001 # 0.015 
-    wcost = 0.0002 # 0.0002
+    lrate = 0.01
+    wcost = 0.0002
     nhidden = 100
-    npatterns = 10000
+    npatterns = 1000
     train_minibatch_errors = []
-    n_train_epochs = 100000
-    plot_every_n = 500
+    n_train_epochs = 10000
+    n_in_minibatch = 10
+    momentum = 0.9
+    plot = False
+    plot_every_n = 1000
     should_plot = lambda n: not n % plot_every_n # e.g. 0, 100, 200, 300, 400, ...
     # plot_every_logn = 10
     # should_plot = lambda n: log(n,plot_every_logn).is_integer() # e.g. 10th, 100th, 1000th, 10000th, ...
-    n_in_minibatch = 20
-    momentum = 0.5
 
     # pset = create_random_patternset(npatterns=npatterns)
     pset = create_mnist_patternset(npatterns=npatterns)
 
-    net = RbmNetwork(np.prod(pset.shape), nhidden, lrate, wcost, momentum, v_shape=pset.shape, plot=False)
+    net = RbmNetwork(np.prod(pset.shape), nhidden, lrate, wcost, momentum, v_shape=pset.shape, plot=plot)
     # pset = create_random_patternset()
     print net
     print pset
