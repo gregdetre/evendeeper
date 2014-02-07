@@ -323,11 +323,11 @@ if __name__ == "__main__":
         if should_plot(epochnum):
             pattern0 = minibatch.patterns[0].reshape(1, net.n_v)
             net.plot_layers(pattern0, ttl=msg)
-            # net.plot_weights(net.w, net.fignum_weights, 'Weights to hidden at E#%i' % epochnum)
-            # net.plot_weights(d_w, net.fignum_dweights, 'D weights to hidden at E#%i' % epochnum)
+            net.plot_weights(net.w, net.fignum_weights, 'Weights to hidden at E#%i' % epochnum)
+            # net.plot_weights(net.d_w, net.fignum_dweights, 'D weights to hidden at E#%i' % epochnum)
             net.plot_errors(train_minibatch_errors)
-            # net.plot_biases(net.a, net.b, net.fignum_biases, 'Biases at E#%i' % epochnum)
-            # net.plot_biases(d_a, d_b, net.fignum_dbiases, 'D biases at E#%i' % epochnum)
+            net.plot_biases(net.a, net.b, net.fignum_biases, 'Biases at E#%i' % epochnum)
+            # net.plot_biases(net.d_a, net.d_b, net.fignum_dbiases, 'D biases at E#%i' % epochnum)
 
     for patnum in range(npatterns):
         pattern = pset.get(patnum).reshape(1, net.n_v)
