@@ -1,4 +1,5 @@
-import csv, numpy
+import csv
+import gzip
 import numpy as np
 
 
@@ -26,4 +27,4 @@ def load_mnist(nrows=None, filen='../data/mnist_train.csv'):
 
     data = np.reshape(np.array(data,dtype=int), newshape=(rows,cols))
 
-    return Dataset(X = data, name = 'mnist_test', num_obs = rows, inputs = cols)
+    return Dataset(X=data, name='mnist_test', num_obs=rows, inputs=cols)
