@@ -82,7 +82,7 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, max_time_s
         epochnum = 0
         while True:
             train_minibatch = Minibatch(pset, nitm)
-            [d_w, d_a, d_b] = net.learn_trial(train_minibatch.patterns)
+            net.learn_trial(train_minibatch.patterns)
             if t.finish(milli=False) > max_time_secs: break
             epochnum += 1
         train_elapsed = t.finish(milli=False)
