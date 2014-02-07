@@ -12,13 +12,17 @@ from utils.utils import imagesc, sigmoid, sumsq, vec_to_arr
 
 # TODO
 #
+# why isn't original update_weights working???
+# parallelise parallel tempering
+# is parallel tempering working???
 # rename _act to _prob
-# check learning rate is right for numcases
+# make sure lrate divides by minibatch consistently
+# make sure we're using momentum
+# make sure we're using weight cost
 # create Epoch, TrainEpoch, TestEpoch, ValidationEpochadd 
 # PCD
 # validation crit
 # init vis bias with hinton practical tip
-# compare parameters
 
 
 class RbmNetwork(Network):
