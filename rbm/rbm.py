@@ -8,7 +8,7 @@ import random
 import time
 
 from base import create_mnist_patternset, Minibatch, Network, Patternset
-from utils.utils import imagesc, sigmoid, sumsq, vec_to_arr
+from utils.utils import imagesc, isfunction, sigmoid, sumsq, vec_to_arr
 
 # TODO
 #
@@ -26,7 +26,7 @@ from utils.utils import imagesc, sigmoid, sumsq, vec_to_arr
 
 
 class RbmNetwork(Network):
-    def __init__(self, n_v, n_h, lrate, wcost, momentum, v_shape=None, plot=True):
+    def __init__(self, n_v, n_h, lrate, wcost, momentum, n_temperatures=None, v_shape=None, plot=True):
         self.n_v, self.n_h = n_v, n_h
         self.lrate = lrate
         self.w = self.init_weights(n_v, n_h)
@@ -38,7 +38,12 @@ class RbmNetwork(Network):
         self.v_shape = v_shape or (1,n_v)
         self.wcost = wcost
         self.momentum = momentum
+        # number of parallel tempering chains
+        self.n_temperatures = n_temperatures if isfunction(n_temperatures) else lambda net: None
+        if self.n_temperatures is None: print 'Using single tempering'
+        else: print 'Using parallel tempering'
 
+        self.trial_num = 0
         self.plot = plot
         self.fignum_layers = 1
         self.fignum_weights = 2
@@ -58,11 +63,17 @@ class RbmNetwork(Network):
         # return np.random.uniform(size=(n_v, n_h), high=scale)
         return np.random.normal(size=(n_v, n_h), loc=0, scale=scale)
 
-    def propagate_fwd(self, v):
-        return super(RbmNetwork, self).propagate_fwd(v, self.w, self.b)
+    def propagate_fwd(self, v, w=None, a=None, b=None):
+        if w is None: w = self.w
+        if a is None: a = self.a
+        if b is None: b = self.b
+        return super(RbmNetwork, self).propagate_fwd(v, w, b)
 
-    def propagate_back(self, h):
-        return super(RbmNetwork, self).propagate_back(h, self.w, self.a)
+    def propagate_back(self, h, w=None, a=None, b=None):
+        if w is None: w = self.w
+        if a is None: a = self.a
+        if b is None: b = self.b
+        return super(RbmNetwork, self).propagate_back(h, w, a)
 
     def act_fn(self, x): return sigmoid(x)
 
@@ -74,15 +85,19 @@ class RbmNetwork(Network):
         return error, v_minus_prob
 
     def learn_trial(self, v_plus):
-        n_in_minibatch = float(v_plus.shape[0])
+        n_mb = v_plus.shape[0]
+        self.trial_num += n_mb
+        lrate_over_n_mb = self.lrate/float(n_mb)
 
-        d_w, d_a, d_b = self.update_weights(v_plus)
+        M = self.n_temperatures(self)
+        if M is None:
+            d_w, d_a, d_b = self.update_weights(v_plus)
+        else:
+            d_w, d_a, d_b = self.update_weights_pt(v_plus, M)
 
-        # d_w, d_a, d_b = self.update_weights_pt(v_plus)
-
-        d_w = (self.lrate/n_in_minibatch)*(d_w - self.wcost*self.w) + self.momentum*self.d_w
-        d_a = (self.lrate/n_in_minibatch)*(d_a - self.wcost*self.a) + self.momentum*self.d_a
-        d_b = (self.lrate/n_in_minibatch)*(d_b - self.wcost*self.b) + self.momentum*self.d_b
+        d_w = lrate_over_n_mb*(d_w - self.wcost*self.w) + self.momentum*self.d_w
+        d_a = lrate_over_n_mb*(d_a - self.wcost*self.a) + self.momentum*self.d_a
+        d_b = lrate_over_n_mb*(d_b - self.wcost*self.b) + self.momentum*self.d_b
 
         self.w = self.w + d_w
         self.a = self.a + d_a
@@ -92,13 +107,12 @@ class RbmNetwork(Network):
     def calculate_error(self, actual, desired):
         return sumsq(actual - desired)
 
-    def gibbs_step(self, v_plus):
-        h_plus_inp, h_plus_prob = self.propagate_fwd(v_plus)
+    def gibbs_step(self, v_plus, w=None, a=None, b=None):
+        h_plus_inp, h_plus_prob = self.propagate_fwd(v_plus, w, a, b)
         h_plus_state = self.samplestates(h_plus_prob)
-        v_minus_inp, v_minus_prob = self.propagate_back(h_plus_state)
+        v_minus_inp, v_minus_prob = self.propagate_back(h_plus_state, w, a, b)
         v_minus_state = self.samplestates(v_minus_prob)
-        # h_minus_inp, h_minus_prob = self.propagate_fwd(v_minus_state)
-        h_minus_inp, h_minus_prob = self.propagate_fwd(v_minus_prob)
+        h_minus_inp, h_minus_prob = self.propagate_fwd(v_minus_prob, w, a, b)
         h_minus_state = self.samplestates(h_minus_prob)
         return \
             h_plus_inp, h_plus_prob, h_plus_state, \
@@ -119,13 +133,12 @@ class RbmNetwork(Network):
         d_b = np.mean(h_plus_state-h_minus_prob, axis=0)
         return d_w, d_a, d_b
 
-    def update_weights_pt(self, v_plus):
-        M = 10 # number of parallel chains
-
+    def update_weights_pt(self, v_plus, M):
+        # M == n_temperatures
         n_mb = v_plus.shape[0]
 
-        T = np.arange(1, M+1) # linear
-        invT = 1.0/np.arange(1, M+1) # linear
+        T = np.arange(1, M+1)
+        invT = 1.0/T
 
         d_w = np.zeros_like(self.w)
         d_a = np.zeros(shape=self.a.shape)
@@ -137,19 +150,11 @@ class RbmNetwork(Network):
         v_minus_states = np.zeros((M, n_mb, self.n_v))
         h_plus_states = np.zeros((M, n_mb, self.n_h))
         
-        w_orig = self.w.copy() # backup weights
-        a_orig = self.a.copy() # backup visible bias
-        b_orig = self.b.copy() # backup hidden bias
-
         for m in range(M):
-           # smoothing
-           self.w = w_orig * (1.0/T[m])
-           self.a = a_orig * (1.0/T[m])
-           self.b = b_orig * (1.0/T[m])
            # perform CD1
            _, h_plus_act, h_plus_state, \
                _, v_minus_act, v_minus_state, \
-               _, h_minus_act, _ = self.gibbs_step(v_plus)
+               _, h_minus_act, _ = self.gibbs_step(v_plus, self.w*invT[m], self.a*invT[m], self.b*invT[m])
            h_plus_states[m] = h_plus_state
            h_plus_acts[m] = h_plus_act
            v_minus_acts[m] = v_minus_act
@@ -184,11 +189,16 @@ class RbmNetwork(Network):
 
             ratio = self.metropolis_ratio(invT[m], invT[m-1], v[m], v[m-1], h[m], h[m-1])
             rand = np.random.uniform(size=ratio.shape)
-            v1, h1 = dofor(ratio, rand, v, h)
-            v2, h2 = domat(ratio, rand, v, h)
-            assert np.array_equal(v1, v2)
-            assert np.array_equal(h1, h2)
-            v, h = v1, h1
+            # v1, h1 = dofor(ratio, rand, v, h)
+            # pause()
+            if random.choice(ratio > rand):
+                v[m], v[m-1] = v[m-1], v[m]
+                h[m], h[m-1] = h[m-1], h[m]
+
+            # v2, h2 = domat(ratio, rand, v, h)
+            # assert np.array_equal(v1, v2)
+            # assert np.array_equal(h1, h2)
+            # v, h = v1, h1
 
         for m in range(2, M, 2):
             v = v_minus_acts
@@ -209,10 +219,6 @@ class RbmNetwork(Network):
         d_w = d_w + diff_plus_minus
         d_a = d_a + np.mean(v_plus - v_minus_states[0], axis=0) # d_a is visible bias (b)
         d_b = d_b + np.mean(h_plus_acts[0] - h_minus_acts[0], axis=0) # d_b is hidden bias (c)
-
-        self.w = w_orig # restore weights
-        self.a = a_orig # restore visible bias
-        self.b = b_orig # restore hidden bias
 
         return d_w, d_a, d_b
 
@@ -330,26 +336,34 @@ def create_random_patternset(shape=(8,2), npatterns=5):
 
 
 if __name__ == "__main__":
+    
+
     np.random.seed()
 
     lrate = 0.01
     wcost = 0.0002
     nhidden = 100
-    npatterns = 1000
+    npatterns = 10000
     train_minibatch_errors = []
-    n_train_epochs = 10000
-    n_in_minibatch = 10
+    n_train_epochs = 5000 # 10000
+    n_in_minibatch = 5
     momentum = 0.9
-    plot = False
+    # n_temperatures = 50 # None
+    def n_temperatures(net):
+        # M = sqrt(net.trial_num/100)
+        M = net.trial_num / 500
+        return M if M > 1 else None
+    plot = True
     plot_every_n = 1000
     should_plot = lambda n: not n % plot_every_n # e.g. 0, 100, 200, 300, 400, ...
     # plot_every_logn = 10
     # should_plot = lambda n: log(n,plot_every_logn).is_integer() # e.g. 10th, 100th, 1000th, 10000th, ...
+    print_every_n = 25
 
     # pset = create_random_patternset(npatterns=npatterns)
     pset = create_mnist_patternset(npatterns=npatterns)
 
-    net = RbmNetwork(np.prod(pset.shape), nhidden, lrate, wcost, momentum, v_shape=pset.shape, plot=plot)
+    net = RbmNetwork(np.prod(pset.shape), nhidden, lrate, wcost, momentum, n_temperatures, v_shape=pset.shape, plot=plot)
     # pset = create_random_patternset()
     print net
     print pset
@@ -363,8 +377,8 @@ if __name__ == "__main__":
         minibatch_error = np.mean(errors)
         train_minibatch_errors.append(minibatch_error)
 
-        msg = 'At E#%i, error = %.2f' % (epochnum, minibatch_error)
-        print msg
+        msg = 'At E#%i, error = %.2f, n_temperatures = %i' % (epochnum, minibatch_error, net.n_temperatures(net) or 0)
+        if not epochnum % print_every_n: print msg
         
         if should_plot(epochnum):
             pattern0 = minibatch.patterns[0].reshape(1, net.n_v)
