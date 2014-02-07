@@ -187,10 +187,10 @@ class RbmNetwork(Network):
 
         return d_w, d_a, d_b
 
-    def metropolis_ratio(self, T_curr, T_prev, v_curr, v_prev, h_curr, h_prev):
-        ratio = ((1.0/T_curr)-(1.0/T_prev)) * (self.energy_fn(v_curr, h_curr) - \
-                        self.energy_fn(v_prev, h_prev))
-        return np.minimum(1, ratio)
+    def metropolis_ratio(self, invT_curr, invT_prev, v_curr, v_prev, h_curr, h_prev):
+        ratio = ((invT_curr-invT_prev) *
+                 (self.energy_fn(v_curr, h_curr) - self.energy_fn(v_prev, h_prev)))
+        return np.minimum(np.ones_like(ratio), ratio)
 
     def energy_fn(self, v, h):
         def dofor():
