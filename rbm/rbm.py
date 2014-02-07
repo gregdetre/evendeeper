@@ -71,21 +71,18 @@ class RbmNetwork(Network):
     def learn_trial(self, v_plus):
         n_in_minibatch = float(v_plus.shape[0])
 
-        #d_w, d_a, d_b = self.update_weights(v_plus)
-        #self.w = self.w + d_w + self.momentum*self.d_w
-        #self.a = self.a + d_a + self.momentum*self.d_a
-        #self.b = self.b + d_b + self.momentum*self.d_b
+        # d_w, d_a, d_b = self.update_weights(v_plus)
 
         d_w, d_a, d_b = self.update_weights_pt(v_plus)
-        #self.w = self.w + d_w + self.momentum*self.d_w
-        #self.a = self.a + d_a + self.momentum*self.d_a
-        #self.b = self.b + d_b + self.momentum*self.d_b
 
-        self.w = self.w + (self.lrate/n_in_minibatch)*d_w
-        self.a = self.a + (self.lrate/n_in_minibatch)*d_a
-        self.b = self.b + (self.lrate/n_in_minibatch)*d_b
+        d_w = (self.lrate/n_in_minibatch)*(d_w - self.wcost*self.w) + self.momentum*self.d_w
+        d_a = (self.lrate/n_in_minibatch)*(d_a - self.wcost*self.a) + self.momentum*self.d_a
+        d_b = (self.lrate/n_in_minibatch)*(d_b - self.wcost*self.b) + self.momentum*self.d_b
+
+        self.w = self.w + d_w
+        self.a = self.a + d_a
+        self.b = self.b + d_b
         self.d_w, self.d_a, self.d_b = d_w, d_a, d_b
-
 
     def calculate_error(self, actual, desired):
         return sumsq(actual - desired)
@@ -111,13 +108,10 @@ class RbmNetwork(Network):
         h_plus_inp, h_plus_prob, h_plus_state, \
             v_minus_inp, v_minus_prob, v_minus_state, \
             h_minus_inp, h_minus_prob, h_minus_state = self.gibbs_step(v_plus)
-        d_w = np.zeros(self.w.shape)
-        d_a = np.mean(self.lrate * (v_plus-v_minus_prob) - self.wcost * self.a,
-                      axis=0)
-        d_b = np.mean(self.lrate * (h_plus_state-h_minus_prob) - self.wcost * self.b,
-                      axis=0)
         diff_plus_minus = np.dot(v_plus.T, h_plus_prob) - np.dot(v_minus_prob.T, h_minus_prob)
-        d_w = self.lrate * (diff_plus_minus/n_in_minibatch - self.wcost*self.w)
+        d_w = diff_plus_minus
+        d_a = np.mean(v_plus-v_minus_prob, axis=0)
+        d_b = np.mean(h_plus_state-h_minus_prob, axis=0)
         return d_w, d_a, d_b
 
     def update_weights_pt(self, v_plus):
