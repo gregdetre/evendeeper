@@ -199,10 +199,28 @@ class RbmNetwork(Network):
         return np.minimum(1, ratio)
 
     def energy_fn(self, v, h):
-        E_w = np.dot(np.dot(v, self.w), h.T)
-        E_vbias = np.vdot(v, self.a)
-        E_hbias = np.vdot(h, self.b)
-        return - E_w - E_vbias - E_hbias
+        def dofor():
+            n_mb = v.shape[0] # number in minibatch
+            assert n_mb == h.shape[0]
+            energy = np.zeros((n_mb,))
+            for mb in range(n_mb):
+                E_w = np.dot(np.dot(v[mb], self.w), h[mb].T)
+                E_vbias = np.vdot(v[mb], self.a)
+                E_hbias = np.vdot(h[mb], self.b)
+                energy[mb] = -E_w - E_vbias - E_hbias
+            return energy
+
+        def domat():
+            E_w = np.dot(np.dot(v, self.w), h.T)
+            E_vbias = np.dot(v, self.a)
+            E_hbias = np.dot(h, self.b)
+            energy = -E_w - E_vbias - E_hbias
+            return energy.mean(axis=1)
+
+        # do1 = dofor()
+        do2 = domat()
+        # assert np.allclose(do1, do2)
+        return do2
 
     def plot_layers(self, v_plus, ttl=None):
         if not self.plot: return
