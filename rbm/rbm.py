@@ -140,10 +140,6 @@ class RbmNetwork(Network):
         T = np.arange(1, M+1)
         invT = 1.0/T
 
-        d_w = np.zeros_like(self.w)
-        d_a = np.zeros(shape=self.a.shape)
-        d_b = np.zeros(shape=self.b.shape)
-
         h_minus_acts = np.zeros((M, n_mb, self.n_h))
         h_plus_acts = np.zeros((M, n_mb, self.n_h))
         v_minus_acts = np.zeros((M, n_mb, self.n_v))
@@ -161,65 +157,26 @@ class RbmNetwork(Network):
            v_minus_states[m] = v_minus_state
            h_minus_acts[m] = h_minus_act
 
-        # swapping
+        v = v_minus_acts
+        h = h_minus_acts
+        # swapping, in 2 stages
         for m in range(1, M, 2):
-            v = v_minus_acts
-            h = h_minus_acts
-
-            def dofor(ratio, rand, v_orig, h_orig):
-                v = copy(v_orig)
-                h = copy(h_orig)
-                for n in range(ratio.shape[0]):
-                    if ratio[n] > rand[n]:
-                        v[m][n], v[m-1][n] = v[m-1][n], v[m][n]
-                        h[m][n], h[m-1][n] = h[m-1][n], h[m][n]
-                return v,h
-
-            def domat(ratio, rand, v_orig, h_orig):
-                v = copy(v_orig)
-                h = copy(h_orig)
-                # RGR = RATIO_GT_RAND = is RATIO >
-                # RAND?. we're going to convert to ints
-                # (i.e. 0 and 1), so that we can use it for indexing
-                rgr = (ratio > rand).astype(int)
-                rgr_ix = rgr.nonzero()
-                v[m-rgr,rgr_ix,:], v[m-(1-rgr),rgr_ix,:] = v[m-(1-rgr),rgr_ix,:], v[m-rgr,rgr_ix,:]
-                h[m-rgr,rgr_ix,:], h[m-(1-rgr),rgr_ix,:] = h[m-(1-rgr),rgr_ix,:], h[m-rgr,rgr_ix,:]
-                return v,h
-
             ratio = self.metropolis_ratio(invT[m], invT[m-1], v[m], v[m-1], h[m], h[m-1])
             rand = np.random.uniform(size=ratio.shape)
-            # v1, h1 = dofor(ratio, rand, v, h)
-            # pause()
+            if random.choice(ratio > rand):
+                v[m], v[m-1] = v[m-1], v[m]
+                h[m], h[m-1] = h[m-1], h[m]
+        for m in range(2, M, 2):
+            ratio = self.metropolis_ratio(invT[m], invT[m-1], v[m], v[m-1], h[m], h[m-1])
+            rand = np.random.uniform(size=ratio.shape)
             if random.choice(ratio > rand):
                 v[m], v[m-1] = v[m-1], v[m]
                 h[m], h[m-1] = h[m-1], h[m]
 
-            # v2, h2 = domat(ratio, rand, v, h)
-            # assert np.array_equal(v1, v2)
-            # assert np.array_equal(h1, h2)
-            # v, h = v1, h1
-
-        for m in range(2, M, 2):
-            v = v_minus_acts
-            h = h_minus_acts
-            ratio = self.metropolis_ratio(invT[m], invT[m-1], v[m], v[m-1], h[m], h[m-1])
-            for n in range(ratio.shape[0]):
-                if ratio[n] > np.random.uniform():
-                    v[m][n], v[m-1][n] = v[m-1][n], v[m][n]
-                    h[m][n], h[m-1][n] = h[m-1][n], h[m][n]
-
-        #d_w = d_w + self.lrate * (diff_plus_minus/n_in_minibatch - self.wcost*self.w)
-        #d_a = d_a + self.lrate * (v_sample-v_minus_acts[0]) - \
-        #        self.wcost * self.a
-        #d_b = d_b + self.lrate * (h_plus_state[0]-h_minus_acts[0]) - \
-        #        self.wcost * self.b
         diff_plus_minus = np.dot(v_plus.T, h_plus_acts[0]) - np.dot(v_minus_acts[0].T, h_minus_acts[0])
-  
-        d_w = d_w + diff_plus_minus
-        d_a = d_a + np.mean(v_plus - v_minus_states[0], axis=0) # d_a is visible bias (b)
-        d_b = d_b + np.mean(h_plus_acts[0] - h_minus_acts[0], axis=0) # d_b is hidden bias (c)
-
+        d_w = diff_plus_minus
+        d_a = np.mean(v_plus - v_minus_states[0], axis=0) # d_a is visible bias (b)
+        d_b = np.mean(h_plus_acts[0] - h_minus_acts[0], axis=0) # d_b is hidden bias (c)
         return d_w, d_a, d_b
 
     def metropolis_ratio(self, invT_curr, invT_prev, v_curr, v_prev, h_curr, h_prev):
@@ -345,11 +302,12 @@ if __name__ == "__main__":
     nhidden = 100
     npatterns = 10000
     train_minibatch_errors = []
-    n_train_epochs = 5000 # 10000
+    n_train_epochs = 10000
     n_in_minibatch = 5
     momentum = 0.9
     # n_temperatures = 50 # None
     def n_temperatures(net):
+        if not net.trial_num % 1000: return None
         # M = sqrt(net.trial_num/100)
         M = net.trial_num / 500
         return M if M > 1 else None
