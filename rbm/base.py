@@ -49,8 +49,9 @@ class Patternset(object):
             if len(patterns[0].shape) == 1: patterns = [vec_to_arr(i) for i in patterns]
         else:
             patterns = [i.reshape(shape) for i in patterns]
-        self.shape = patterns[0].shape
         self.patterns = patterns
+        self.shape = patterns[0].shape
+        self.n = len(patterns)
 
     def __repr__(self):
         return '%s I(%ix%i)x%i' % (
@@ -88,14 +89,26 @@ class Minibatch2(object):
     def getmulti(self, idx): return self.iset.getmulti(idx), self.oset.getmulti(idx)
 
 
-def create_mnist_patternset(npatterns=None, ravel=False, zero_to_negone=False):
-    filen = '../data/mnist_train.csv.gz'
-    print 'Loading %s MNIST patterns from %s' % (str(npatterns) if npatterns else 'all', filen)
-    t = Stopwatch()
-    mnist_ds = load_mnist(filen=filen, nrows=npatterns)
-    if zero_to_negone: mnist_ds.X[mnist_ds.X==0] = -1
-    if npatterns is not None: assert mnist_ds.X.shape[0] == npatterns
-    shape = (1,784) if ravel else (28,28)
-    pset = Patternset(mnist_ds.X, shape=shape)
-    print 'done (%i x %i) in %is' % (mnist_ds.X.shape[0], mnist_ds.X.shape[1], t.finish(milli=False))
-    return pset
+def create_mnist_patternsets(n_trainpatterns=None, n_validpatterns=None, ravel=False, zero_to_negone=False):
+    def load_mnist_patternset(filen, npatterns=None):
+        print 'Loading %s MNIST patterns from %s' % (str(npatterns) if npatterns else 'all', filen)
+        t = Stopwatch()
+        mnist_ds = load_mnist(filen=filen, nrows=npatterns)
+        if zero_to_negone: mnist_ds.X[mnist_ds.X==0] = -1
+        if npatterns is not None: assert mnist_ds.X.shape[0] == npatterns
+        shape = (1,784) if ravel else (28,28)
+        pset = Patternset(mnist_ds.X, shape=shape)
+        print 'done (%i x %i) in %is' % (mnist_ds.X.shape[0], mnist_ds.X.shape[1], t.finish(milli=False))
+        return pset
+
+    train_filen = '../data/mnist_train.csv.gz'
+    test_filen = '../data/mnist_test.csv.gz'
+    n_trainvalidpatterns = n_trainpatterns + n_validpatterns
+    train_valid_data = load_mnist_patternset(train_filen, npatterns=n_trainvalidpatterns)
+    test_data = load_mnist_patternset(test_filen)
+    train_data = Patternset(train_valid_data.patterns[:n_trainpatterns])
+    valid_data = Patternset(train_valid_data.patterns[n_trainpatterns:n_trainvalidpatterns])
+    assert train_data.n == 50000 if n_trainpatterns is None else n_trainpatterns
+    assert valid_data.n == 10000 if n_validpatterns is None else n_validpatterns
+    assert test_data.n == 10000
+    return train_data, valid_data, test_data
