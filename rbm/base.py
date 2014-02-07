@@ -3,6 +3,7 @@ import numpy as np
 from random import sample
 
 from datasets import load_mnist
+from utils.stopwatch import Stopwatch
 from utils.utils import imagesc, isunique, vec_to_arr
 
 
@@ -88,11 +89,13 @@ class Minibatch2(object):
 
 
 def create_mnist_patternset(npatterns=None, ravel=False, zero_to_negone=False):
-    print 'Loading %s MNIST patterns' % (str(npatterns) if npatterns else 'all')
-    mnist_ds = load_mnist(filen='../data/mnist_train.csv', nrows=npatterns)
+    filen = '../data/mnist_train.csv.gz'
+    print 'Loading %s MNIST patterns from %s' % (str(npatterns) if npatterns else 'all', filen)
+    t = Stopwatch()
+    mnist_ds = load_mnist(filen=filen, nrows=npatterns)
     if zero_to_negone: mnist_ds.X[mnist_ds.X==0] = -1
     if npatterns is not None: assert mnist_ds.X.shape[0] == npatterns
-    if ravel: pset = Patternset(mnist_ds.X, shape=(1,784))
-    else: pset = Patternset(mnist_ds.X, shape=(28,28))
-    print 'done'
+    shape = (1,784) if ravel else (28,28)
+    pset = Patternset(mnist_ds.X, shape=shape)
+    print 'done (%i x %i) in %is' % (mnist_ds.X.shape[0], mnist_ds.X.shape[1], t.finish(milli=False))
     return pset

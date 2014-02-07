@@ -1,6 +1,6 @@
-import csv
-import gzip
 import numpy as np
+import pandas as pd
+from ipdb import set_trace as pause
 
 
 class Dataset(dict):
@@ -8,23 +8,13 @@ class Dataset(dict):
         dict.__init__(self, kwargs)
         self.__dict__ = self
 
-def load_mnist(nrows=None, filen='../data/mnist_train.csv'):
+
+def load_mnist(filen='../data/mnist_train.csv.gz', nrows=None):
     """
     Reads in the MNIST dataset and returns a Dataset object which holds the data 
     along with metadata from the files specified
     """
-    data = []
-    cols = 0
-    rows = 0
-    with open(filen, 'r') as csvfile:
-        csvreader = csv.reader(csvfile, dialect='excel', delimiter=',');
-        for line in csvreader:
-            data.extend(line)
-            if cols == 0:
-                cols = len(line)
-            rows += 1
-            if nrows is not None and rows >= nrows: break
-
-    data = np.reshape(np.array(data,dtype=int), newshape=(rows,cols))
-
-    return Dataset(X=data, name='mnist_test', num_obs=rows, inputs=cols)
+    panda = pd.read_csv(filen, delimiter=',', dtype=int, header=None, nrows=nrows,
+                    compression=('gzip' if filen.endswith('.gz') else None))
+    data = panda.values # numpy array
+    return Dataset(X=data, name='mnist', filen=filen)
