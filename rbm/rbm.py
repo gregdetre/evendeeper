@@ -389,14 +389,14 @@ if __name__ == "__main__":
             net.plot_biases(net.a, net.b, net.fignum_biases, 'Biases at E#%i' % epochnum)
             # net.plot_biases(net.d_a, net.d_b, net.fignum_dbiases, 'D biases at E#%i' % epochnum)
 
-    for patnum in range(npatterns):
-        pattern = pset.get(patnum).reshape(1, net.n_v)
-        error, v_minus = net.test_trial(pattern)
-        print 'End of training (E#%i), error = %.2f' % (n_train_epochs, error)
-        pset.imshow(v_minus)
-
-    print '  '.join(['%.2f' % error for error in train_minibatch_errors])
-    plt.figure()
-    net.plot_errors(train_minibatch_errors)
+#     for patnum in range(npatterns)[:10]:
+#         pattern = pset.get(patnum).reshape(1, net.n_v)
+#         error, v_minus = net.test_trial(pattern)
+#         print 'End of training (E#%i), error = %.2f' % (n_train_epochs, error)
+#         pset.imshow(v_minus)
+    
+    # print '  '.join(['%.2f' % error for error in train_minibatch_errors])
+    # plt.figure()
+    # net.plot_errors(train_minibatch_errors)
     pause()
 
