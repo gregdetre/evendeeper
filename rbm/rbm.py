@@ -56,7 +56,7 @@ class RbmNetwork(Network):
             plt.figure(figsize=(5,7), num=self.fignum_layers)
             if self.fignum_dweights: plt.figure(figsize=(9,6), num=self.fignum_weights) # 6,4
             if self.fignum_dweights: plt.figure(figsize=(9,6), num=self.fignum_dweights)
-            plt.figure(figsize=(3,2), num=self.fignum_errors)
+            plt.figure(figsize=(4,3), num=self.fignum_errors)
             if self.fignum_biases: plt.figure(figsize=(3,2), num=self.fignum_biases)
             if self.fignum_dbiases: plt.figure(figsize=(3,2), num=self.fignum_dbiases)
 
@@ -286,7 +286,10 @@ class RbmNetwork(Network):
         epochrange = range(len(train_errors))
         assert len(train_errors) == len(valid_errors)
         assert len(train_errors) == len(test_errors)
-        plt.plot(epochrange, train_errors, epochrange, valid_errors, epochrange, test_errors)
+        train_line = plt.plot(train_errors, label='Train')
+        valid_line = plt.plot(valid_errors, label='Valid')
+        test_line = plt.plot(test_errors, label='Test')
+        plt.legend()
         max_error = max(max(train_errors), max(test_errors), max(valid_errors))
         plt.ylim(ymin=0, ymax=max_error*1.1)
         plt.draw()
@@ -302,9 +305,9 @@ if __name__ == "__main__":
 
     lrate = 0.01
     wcost = 0.0002
-    nhidden = 100
-    n_trainpatterns = 5000 # 50000
-    n_validpatterns = 1000 # 10000
+    nhidden = 500
+    n_trainpatterns = 50000
+    n_validpatterns = 10000
     n_train_epochs = 100000
     n_in_minibatch = 5
     momentum = 0.9
@@ -314,7 +317,7 @@ if __name__ == "__main__":
         M = net.trial_num / 500
         return M if M > 1 else None
     plot = True
-    plot_every_n = 1000
+    plot_every_n = 100
     should_plot = lambda n: not n % plot_every_n # e.g. 0, 100, 200, 300, 400, ...
     # plot_every_logn = 10
     # should_plot = lambda n: log(n,plot_every_logn).is_integer() # e.g. 10th, 100th, 1000th, 10000th, ...
@@ -325,9 +328,10 @@ if __name__ == "__main__":
     train_pset, valid_pset, test_pset = create_mnist_patternsets(n_trainpatterns=n_trainpatterns, n_validpatterns=n_validpatterns)
     n_trainpatterns, n_validpatterns, n_testpatterns = train_pset.n, valid_pset.n, test_pset.n
 
+    net_t = Stopwatch()
     net = RbmNetwork(np.prod(train_pset.shape), nhidden, lrate, wcost, momentum, n_temperatures, v_shape=train_pset.shape, plot=plot)
     # pset = create_random_patternset()
-    print net
+    print 'Init net in %.1fs' % net_t.finish(milli=False), net
     print 'train:', train_pset, '\tvalid:', valid_pset, '\ttest:', test_pset
 
     train_errors = []
@@ -356,14 +360,13 @@ if __name__ == "__main__":
             valid_errors.append(valid_error)
             test_error = np.mean(net.test_trial(test_patterns)[0])
             test_errors.append(test_error)
-            msg = 'At E#%i, train_minibatch_error = %.2f, valid_error = %.2f, test_error = %.2f, n_temperatures = %i' % \
-                (epochnum, train_error, valid_error, test_error, net.n_temperatures(net) or 0)
+            msg = 'At E#%i, T#%i, train_minibatch_error = %.1f, valid_error = %.1f, test_error = %.1f, n_temperatures = %i' % \
+                (epochnum, net.trial_num, train_error, valid_error, test_error, net.n_temperatures(net) or 0)
 
             if printme:
                 print msg
         
             if plotme:
-                print 'Plotting'
                 pattern0 = minibatch_pset.patterns[0].reshape(1, net.n_v)
                 net.plot_layers(pattern0, ttl=msg)
                 if net.fignum_weights: net.plot_weights(net.w, net.fignum_weights, 'Weights to hidden at E#%i' % epochnum)
@@ -371,7 +374,6 @@ if __name__ == "__main__":
                 net.plot_errors(train_errors, valid_errors, test_errors)
                 if net.fignum_biases: net.plot_biases(net.a, net.b, net.fignum_biases, 'Biases at E#%i' % epochnum)
                 if net.fignum_dbiases: net.plot_biases(net.d_a, net.d_b, net.fignum_dbiases, 'D biases at E#%i' % epochnum)
-                print 'done'
     
 #     for patnum in range(npatterns)[:10]:
 #         pattern = test_pset.get(patnum).reshape(1, net.n_v)
