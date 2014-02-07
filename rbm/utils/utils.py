@@ -40,3 +40,5 @@ def deriv_tanh(x): return 1. - np.power(tanh(x), 2)
 def sumsq(x): return np.sum(np.power(x,2), axis=1)
 
 def vec_to_arr(x): return x.reshape(1, x.size)
+
+def between(x, lower=0, upper=1): return x > lower and x < upper
