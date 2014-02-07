@@ -85,7 +85,6 @@ class RbmNetwork(Network):
         self.b = self.b + (self.lrate/n_in_minibatch)*d_b
         self.d_w, self.d_a, self.d_b = d_w, d_a, d_b
 
-        return self.d_w, self.d_a, self.d_b
 
     def calculate_error(self, actual, desired):
         return sumsq(actual - desired)
@@ -311,7 +310,7 @@ if __name__ == "__main__":
     for epochnum in range(n_train_epochs):
         minibatch = Minibatch(pset, n_in_minibatch)
 
-        [d_w, d_a, d_b] = net.learn_trial(minibatch.patterns)
+        net.learn_trial(minibatch.patterns)
         errors, _ = net.test_trial(minibatch.patterns)
         assert errors.shape == (n_in_minibatch,)
         minibatch_error = np.mean(errors)
