@@ -1,5 +1,6 @@
 from matplotlib import pyplot as plt
 import numpy as np
+from types import FunctionType
 
 
 class HashableDict(dict):
@@ -24,6 +25,8 @@ def imagesc(data, dest=None, grayscale=True, vmin=None, vmax=None):
     return show
 
 def isunique(lst): return len(set(lst))==1
+
+def isfunction(x): return isinstance(x, FunctionType)
 
 def sigmoid(x):
     # from peter's rbm
