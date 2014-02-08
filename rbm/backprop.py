@@ -2,7 +2,7 @@ from ipdb import set_trace as pause
 import numpy as np
 from random import shuffle
 
-from base import create_mnist_patternset, Minibatch2, Network, Patternset
+from base import create_mnist_patternsets, Minibatch2, Network, Patternset
 from utils.utils import deriv_sigmoid, deriv_tanh, imagesc, sigmoid, sumsq, tanh, vec_to_arr
 
 
@@ -110,39 +110,38 @@ def xor(*args, **kwargs):
     net = BackpropNetwork([2, 2, 1], *args, **kwargs)
     return net, iset, oset
 
-def autoencoder(pset, nhiddens, *args, **kwargs):
-    n_inp_out = np.prod(pset.shape)
+def autoencoder(n_inp_out, nhiddens, *args, **kwargs):
     layersizes = [n_inp_out] + nhiddens + [n_inp_out]
     net = BackpropNetwork(layersizes, *args, **kwargs)
-    return net, pset, pset
+    return net
 
 def rand_autoencoder(nhiddens=None, *args, **kwargs):
     n_inp_out = 4
     npatterns = 10
     if nhiddens is None: nhiddens = [12]
     pset = Patternset([np.random.uniform(size=(1,n_inp_out)) for d in range(npatterns)])
-    return autoencoder(pset, nhiddens=nhiddens, *args, **kwargs)
+    return autoencoder(n_inp_out, nhiddens=nhiddens, *args, **kwargs)
 
-def mnist_autoencoder(npatterns=None, nhiddens=None, zero_to_negone=False, *args, **kwargs):
+def mnist_autoencoder(nhiddens=None, *args, **kwargs):
     if nhiddens is None: nhiddens = [500]
-    pset = create_mnist_patternset(npatterns=npatterns, ravel=True, zero_to_negone=zero_to_negone)
-    return autoencoder(pset, nhiddens=nhiddens, *args, **kwargs)
+    return autoencoder(784, nhiddens=nhiddens, *args, **kwargs)
 
 
 if __name__ == "__main__":
     np.random.seed()
     # net, iset, oset = xor(lrate=0.35)
     # net, iset, oset = rand_autoencoder(nhiddens=[24, 12], lrate=0.1)
-    # net, iset, oset = mnist_autoencoder(npatterns=1000, nhiddens=[500, 100], lrate=0.01)
-    net, iset, oset = mnist_autoencoder(npatterns=None, nhiddens=[200], zero_to_negone=True, lrate=0.01)
+    train_pset, valid_pset, test_pset = create_mnist_patternsets(n_trainpatterns=1000, ravel=True, zero_to_negone=True)
+    net = mnist_autoencoder(nhiddens=[200], lrate=0.01)
+    train_iset, train_oset = train_pset, train_pset
     nEpochs = 20000 # 100000
-    n_in_minibatch = min(len(iset), 20)
+    n_in_minibatch = min(len(train_iset), 20)
     report_every = 100 # 1000
     for e in range(nEpochs):
-        act0, target = Minibatch2(iset, oset, n_in_minibatch).patterns
+        act0, target = Minibatch2(train_iset, train_oset, n_in_minibatch).patterns
         # act0, target = act0.ravel(), target.ravel()
         net.learn_trial(act0, target)
         if not e % report_every:
-            error, mean_error = test_epoch(net, iset.patterns, oset.patterns, False)
+            error, mean_error = test_epoch(net, train_iset.patterns, train_oset.patterns, False)
         if mean_error < 0.01: break
-    errors, mean_error = test_epoch(net, iset.patterns, oset.patterns, True)
+    errors, mean_error = test_epoch(net, train_iset.patterns, train_oset.patterns, True)

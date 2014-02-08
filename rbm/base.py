@@ -89,7 +89,7 @@ class Minibatch2(object):
     def getmulti(self, idx): return self.iset.getmulti(idx), self.oset.getmulti(idx)
 
 
-def create_mnist_patternsets(n_trainpatterns=None, n_validpatterns=None, ravel=False, zero_to_negone=False):
+def create_mnist_patternsets(n_trainpatterns=50000, n_validpatterns=10000, ravel=False, zero_to_negone=False):
     def load_mnist_patternset(filen, npatterns=None):
         print 'Loading %s MNIST patterns from %s' % (str(npatterns) if npatterns else 'all', filen)
         t = Stopwatch()
