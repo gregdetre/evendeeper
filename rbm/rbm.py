@@ -41,8 +41,9 @@ class RbmNetwork(Network):
         self.momentum = momentum
         # number of parallel tempering chains
         self.n_temperatures = n_temperatures if isfunction(n_temperatures) else lambda net: None
-        if self.n_temperatures is None: print 'Using single tempering'
-        else: print 'Using parallel tempering'
+        
+        if self.n_temperatures(self) is None: print 'Using single tempering'
+        else: print 'Using parallel tempering with %d chains' % self.n_temperatures(self)
 
         self.trial_num = 0
         self.plot = plot
@@ -92,9 +93,9 @@ class RbmNetwork(Network):
 
         M = self.n_temperatures(self)
         if M is None:
-            d_w, d_a, d_b = self.update_weights(v_plus)
+            d_w, d_a, d_b = self.update_weights(v_plus) # use single tempering
         else:
-            d_w, d_a, d_b = self.update_weights_pt(v_plus, M)
+            d_w, d_a, d_b = self.update_weights_pt(v_plus, M) # use parallel tempering
 
         d_w = lrate_over_n_mb*(d_w - self.wcost*self.w) + self.momentum*self.d_w
         d_a = lrate_over_n_mb*(d_a - self.wcost*self.a) + self.momentum*self.d_a
@@ -109,15 +110,34 @@ class RbmNetwork(Network):
         return sumsq(actual - desired)
 
     def gibbs_step(self, v_plus, w=None, a=None, b=None):
+        # forward propagation
         h_plus_inp, h_plus_prob = self.propagate_fwd(v_plus, w, a, b)
         h_plus_state = self.samplestates(h_plus_prob)
+        # backward propagation
         v_minus_inp, v_minus_prob = self.propagate_back(h_plus_state, w, a, b)
         v_minus_state = self.samplestates(v_minus_prob)
+        # sampling hidden activations
         h_minus_inp, h_minus_prob = self.propagate_fwd(v_minus_prob, w, a, b)
         h_minus_state = self.samplestates(h_minus_prob)
         return \
             h_plus_inp, h_plus_prob, h_plus_state, \
             v_minus_inp, v_minus_prob, v_minus_state, \
+            h_minus_inp, h_minus_prob, h_minus_state
+
+    def k_gibbs_steps(self, v_plus, w=None, a=None, b=None, k=1):
+        assert(k>0) # do at least one step
+        for t in range(k):
+            # forward propagation
+            h_plus_inp, h_plus_prob = self.propagate_fwd(v_plus, w, a, b) 
+            h_plus_state = self.samplestates(h_plus_prob)
+            # backward propagation
+            v_minus_inp, v_minus_prob = self.propagate_back(h_plus_state, w, a, b)
+            v_plus = self.samplestates(v_minus_prob) # = v_minus_state
+        h_minus_inp, h_minus_prob = self.propagate_fwd(v_minus_prob, w, a, b)
+        h_minus_state = self.samplestates(h_minus_prob)
+        return \
+            h_plus_inp, h_plus_prob, h_plus_state, \
+            v_minus_inp, v_minus_prob, v_plus, \
             h_minus_inp, h_minus_prob, h_minus_state
 
     def samplestates(self, x): 
@@ -127,7 +147,7 @@ class RbmNetwork(Network):
         n_in_minibatch = float(v_plus.shape[0])
         h_plus_inp, h_plus_prob, h_plus_state, \
             v_minus_inp, v_minus_prob, v_minus_state, \
-            h_minus_inp, h_minus_prob, h_minus_state = self.gibbs_step(v_plus)
+            h_minus_inp, h_minus_prob, h_minus_state = self.k_gibbs_steps(v_plus, k=1)
         diff_plus_minus = np.dot(v_plus.T, h_plus_prob) - np.dot(v_minus_prob.T, h_minus_prob)
         d_w = diff_plus_minus
         d_a = np.mean(v_plus-v_minus_prob, axis=0)
@@ -144,15 +164,13 @@ class RbmNetwork(Network):
         h_minus_acts = np.zeros((M, n_mb, self.n_h))
         h_plus_acts = np.zeros((M, n_mb, self.n_h))
         v_minus_acts = np.zeros((M, n_mb, self.n_v))
-        v_minus_states = np.zeros((M, n_mb, self.n_v))
-        h_plus_states = np.zeros((M, n_mb, self.n_h))
-        
+        v_minus_states = np.zeros((M, n_mb, self.n_v))      
+
         for m in range(M):
-           # perform CD1
-           _, h_plus_act, h_plus_state, \
+           # perform CDk
+           _, h_plus_act, _, \
                _, v_minus_act, v_minus_state, \
-               _, h_minus_act, _ = self.gibbs_step(v_plus, self.w*invT[m], self.a*invT[m], self.b*invT[m])
-           h_plus_states[m] = h_plus_state
+               _, h_minus_act, _ = self.k_gibbs_steps(v_plus, self.w*invT[m], self.a*invT[m], self.b*invT[m], 1)
            h_plus_acts[m] = h_plus_act
            v_minus_acts[m] = v_minus_act
            v_minus_states[m] = v_minus_state
@@ -186,28 +204,12 @@ class RbmNetwork(Network):
         return np.minimum(np.ones_like(ratio), ratio)
 
     def energy_fn(self, v, h):
-        def dofor():
-            n_mb = v.shape[0] # number in minibatch
-            assert n_mb == h.shape[0]
-            energy = np.zeros((n_mb,))
-            for mb in range(n_mb):
-                E_w = np.dot(np.dot(v[mb], self.w), h[mb].T)
-                E_vbias = np.vdot(v[mb], self.a)
-                E_hbias = np.vdot(h[mb], self.b)
-                energy[mb] = -E_w - E_vbias - E_hbias
-            return energy
+        E_w = np.dot(np.dot(v, self.w), h.T)
+        E_vbias = np.dot(v, self.a)
+        E_hbias = np.dot(h, self.b)
+        energy = -E_w - E_vbias - E_hbias
+        return energy.mean(axis=1)
 
-        def domat():
-            E_w = np.dot(np.dot(v, self.w), h.T)
-            E_vbias = np.dot(v, self.a)
-            E_hbias = np.dot(h, self.b)
-            energy = -E_w - E_vbias - E_hbias
-            return energy.mean(axis=1)
-
-        # do1 = dofor()
-        do2 = domat()
-        # assert np.allclose(do1, do2)
-        return do2
 
     def plot_layers(self, v_plus, ttl=None):
         if not self.plot: return
@@ -306,16 +308,19 @@ if __name__ == "__main__":
     lrate = 0.01
     wcost = 0.0002
     nhidden = 500
-    n_trainpatterns = 50000
-    n_validpatterns = 10000
+    n_trainpatterns = 5000
+    n_validpatterns = 1000
     n_train_epochs = 100000
     n_in_minibatch = 5
     momentum = 0.9
-    # n_temperatures = 50 # None
+    #n_temperatures = 10
     def n_temperatures(net):
+        """
+        Return None for single tempering
+        """
         # M = sqrt(net.trial_num/100)
-        M = net.trial_num / 500
-        return M if M > 1 else None
+        #M = net.trial_num / 500
+        return 10# None #M if M > 1 else None
     plot = True
     plot_every_n = 100
     should_plot = lambda n: not n % plot_every_n # e.g. 0, 100, 200, 300, 400, ...
