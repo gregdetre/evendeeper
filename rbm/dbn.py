@@ -10,17 +10,20 @@
 #   k-steps of CD in the top two layers
 #   propagate back and perform positive/negative learning for each layer
 #   (calculate gradient and update weights)
+#
+#
+# For simplicity: constant number of units per layer
 
 class DBN(Network):
 
-    def __init__(self, layersizes):
+    def __init__(self, n_layers, n_units):
         self.up_epochs = 100000
         self.down_epochs = 100000
 
         self.rbms = []
-        for l1, l2 in zip(self.layersizes[:-1], self.layersizes[1:]):
-            n_v = l1
-            n_h = l2
+        for l in n_layers:
+            n_v = n_units # number of input units?
+            n_h = n_units
             rbm = RbmNetwork(n_v, n_h)
             self.rbms.append(rbm)
 
