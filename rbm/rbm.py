@@ -109,21 +109,6 @@ class RbmNetwork(Network):
     def calculate_error(self, actual, desired):
         return sumsq(actual - desired)
 
-    def gibbs_step(self, v_plus, w=None, a=None, b=None):
-        # forward propagation
-        h_plus_inp, h_plus_prob = self.propagate_fwd(v_plus, w, a, b)
-        h_plus_state = self.samplestates(h_plus_prob)
-        # backward propagation
-        v_minus_inp, v_minus_prob = self.propagate_back(h_plus_state, w, a, b)
-        v_minus_state = self.samplestates(v_minus_prob)
-        # sampling hidden activations
-        h_minus_inp, h_minus_prob = self.propagate_fwd(v_minus_prob, w, a, b)
-        h_minus_state = self.samplestates(h_minus_prob)
-        return \
-            h_plus_inp, h_plus_prob, h_plus_state, \
-            v_minus_inp, v_minus_prob, v_minus_state, \
-            h_minus_inp, h_minus_prob, h_minus_state
-
     def k_gibbs_steps(self, v_plus, w=None, a=None, b=None, k=1):
         assert(k>0) # do at least one step
         for t in range(k):
