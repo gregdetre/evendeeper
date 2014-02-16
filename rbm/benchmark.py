@@ -41,20 +41,24 @@ def sorted_attempts(attempts):
 
 def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, \
                      sampling_steps, n_temperatures, max_time_secs, save_plots):
-    params = ['nhidden', 'lrate', 'wcost', 'momentum', 'n_in_train_minibatch'] # add 'sampling_steps', 'n_temperatures'
+    params = ['nhidden', 'lrate', 'wcost', 'momentum', 'n_in_train_minibatch', 'sampling_steps', 'n_temperatures']
     attempts = []
     for nh in nhidden: # [200, 400, 800]:
         for lr in lrate: # [0.005, 0.02]:
             for wc in wcost: #, 0.002]:
                 for mo in momentum: # [0, 0.4, 0.9]:
                     for nitm in n_in_train_minibatch: # [10, 250]:
-                        attempts.append({'nhidden': nh,
-                                         'lrate': lr,
-                                         'wcost': wc,
-                                         'momentum': mo,
-                                         'n_in_train_minibatch': nitm,
-                                         'should_plot': False,
-                                         })
+                        for st in sampling_steps:
+                            for ntemp in n_temperatures:
+                                attempts.append({'nhidden': nh,
+                                                 'lrate': lr,
+                                                 'wcost': wc,
+                                                 'momentum': mo,
+                                                 'n_in_train_minibatch': nitm,
+                                                 'n_sampling_steps': st,
+                                                 'n_temperatures': ntemp,
+                                                 'should_plot': False,
+                                                 })
     
     nattempts = len(attempts)
     pid = os.getpid()
@@ -80,8 +84,10 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, \
                          attempt['lrate'],
                          attempt['wcost'],
                          attempt['momentum'],
+                         attempt['n_temperatures'],
+                         attempt['n_sampling_steps'],
                          v_shape=train_pset.shape,
-                         plot=True)
+                         plot=save_plots)
         train_errors = []
         valid_errors = []
         test_errors = []
@@ -134,9 +140,9 @@ if __name__ == "__main__":
     wcost = [0.0002]
     momentum = [0.9]
     n_in_train_minibatch = [10]
-    sampling_steps = [] # CD-k
-    n_temperatures = [] # For single tempering, insert 1
-    max_time_secs = 150
+    sampling_steps = [1] # CD-k
+    n_temperatures = [1] # For single tempering, insert 1
+    max_time_secs = 600
     save_plots = True
 
     gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, \
