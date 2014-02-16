@@ -282,7 +282,6 @@ class RbmNetwork(Network):
         plt.draw()
 
     def save_error_plots(self, train_errors, valid_errors, test_errors, filename='errors.png'):
-        pause()
         self.plot_errors(train_errors, valid_errors, test_errors)
         plt.figure(self.fignum_errors).savefig(filename)
 

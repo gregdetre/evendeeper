@@ -39,7 +39,8 @@ def sorted_attempts(attempts):
     attempts = sorted(attempts, key=lambda x: x['test_error'])
     return attempts
 
-def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, sampling_steps, n_temperatures, max_time_secs):
+def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, \
+                     sampling_steps, n_temperatures, max_time_secs, save_plots):
     params = ['nhidden', 'lrate', 'wcost', 'momentum', 'n_in_train_minibatch'] # add 'sampling_steps', 'n_temperatures'
     attempts = []
     for nh in nhidden: # [200, 400, 800]:
@@ -114,10 +115,12 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, sampling_s
         attempt['test_error'] = train_errors[-1] # error from last iteration
         attempt['npatterns'] = n_trainpatterns
 
-        filename = 'error%i.png' % attempt_idx
-        net.save_error_plots(train_errors, valid_errors, test_errors, filename)
+        if save_plots:
+            filename = 'error%i.png' % attempt_idx
+            net.save_error_plots(train_errors, valid_errors, test_errors, filename)
 
-        print 'Finished %i of %i: error %.2f in %.1f secs' % (attempt_idx+1, nattempts, test_error, train_elapsed)
+        print 'Finished %i of %i: error %.2f in %.1f secs' % (attempt_idx+1, \
+                                           nattempts, test_error, train_elapsed)
         print attempt
         print '--------------------'
         print
@@ -127,13 +130,15 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, sampling_s
 if __name__ == "__main__":
     # Parameters for testing
     nhidden = [100]
-    lrate = [0.001, 0.0001]
+    lrate = [0.001, 0.001]
     wcost = [0.0002]
     momentum = [0.9]
     n_in_train_minibatch = [10]
     sampling_steps = [] # CD-k
     n_temperatures = [] # For single tempering, insert 1
-    max_time_secs = 300
+    max_time_secs = 150
+    save_plots = True
 
     gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, \
-                                sampling_steps, n_temperatures, max_time_secs)
+                                sampling_steps, n_temperatures, max_time_secs, \
+                                save_plots)
