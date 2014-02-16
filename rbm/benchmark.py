@@ -39,8 +39,8 @@ def sorted_attempts(attempts):
     attempts = sorted(attempts, key=lambda x: x['test_error'])
     return attempts
 
-def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, max_time_secs):
-    params = ['nhidden', 'lrate', 'wcost', 'momentum', 'n_in_train_minibatch']
+def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, sampling_steps, n_temperatures, max_time_secs):
+    params = ['nhidden', 'lrate', 'wcost', 'momentum', 'n_in_train_minibatch', 'sampling_steps', 'n_temperatures']
     attempts = []
     for nh in nhidden: # [200, 400, 800]:
         for lr in lrate: # [0.005, 0.02]:
@@ -111,23 +111,15 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, max_time_s
 
     
 if __name__ == "__main__":
-    parser = ArgumentParser(description=__doc__)
-    parser.add_argument('--nhidden', type=int, default=[], action='append', help='Number of hidden units')
-    parser.add_argument('--lrate', type=float, default=[], action='append', help='Learning rate')
-    parser.add_argument('--wcost', type=float, default=[], action='append', help='Weight cost')
-    parser.add_argument('--momentum', type=float, default=[], action='append', help='Momentum')
-    parser.add_argument('--n_in_train_minibatch', type=int, default=[], action='append', help='Minibatch size (during training)')
-    parser.add_argument('-s', '--max_time_secs', type=int, default=5, help='How much time to run each attempt for')
-#     parser.add_argument('--shouldplot', type=int, default=0, help='How often to plot graphs - default is 0, i.e. never')
-    kwargs = vars(parser.parse_args())
-    # i haven't figured out a better way to include defaults
-    # in ArgParse (without them still getting included even
-    # when you try and override them)
-    defaults = {'nhidden': 100,
-                'lrate': 0.005,
-                'wcost': 0.0002,
-                'momentum': 0.9,
-                'n_in_train_minibatch': 10,}
-    for k,v in defaults.items():
-        if kwargs.get(k) == []: kwargs[k].append(v)
-    gridsearch(**kwargs)
+    # Parameters for testing
+    nhidden = [100, 200]
+    lrate = [0.0002, 0.001]
+    wcost = [0.0002]
+    momentum = [0.9]
+    n_in_train_minibatch = [10]
+    sampling_steps = [] # CD-k
+    n_temperatures = [] # For single tempering, insert 1
+    max_time_secs = 5
+
+    gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, \
+                                sampling_steps, n_temperatures, max_time_secs)
