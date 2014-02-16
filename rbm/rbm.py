@@ -202,7 +202,7 @@ class RbmNetwork(Network):
         h_bias = vec_to_arr(self.b)
         h_plus_inp, h_plus_prob, h_plus_state, \
             v_minus_inp, v_minus_prob, v_minus_state, \
-            h_minus_inp, h_minus_prob, h_minus_state = self.gibbs_step(v_plus)
+            h_minus_inp, h_minus_prob, h_minus_state = self.k_gibbs_steps(v_plus, k=1)
         lmin, lmax = None, None
 
         v_plus = v_plus.reshape(self.v_shape)
@@ -268,7 +268,7 @@ class RbmNetwork(Network):
     
     def plot_errors(self, train_errors, valid_errors, test_errors):
         if not self.plot: return
-        plt.figure(self.fignum_errors)
+        plt.figure(figsize=(9,6), num=self.fignum_errors)
         plt.clf()
         epochrange = range(len(train_errors))
         assert len(train_errors) == len(valid_errors)
@@ -280,6 +280,11 @@ class RbmNetwork(Network):
         max_error = max(max(train_errors), max(test_errors), max(valid_errors))
         plt.ylim(ymin=0, ymax=max_error*1.1)
         plt.draw()
+
+    def save_error_plots(self, train_errors, valid_errors, test_errors, filename='errors.png'):
+        pause()
+        self.plot_errors(train_errors, valid_errors, test_errors)
+        plt.figure(self.fignum_errors).savefig(filename)
 
 
 def create_random_patternset(shape=(8,2), npatterns=5):
@@ -365,14 +370,5 @@ if __name__ == "__main__":
                 if net.fignum_biases: net.plot_biases(net.a, net.b, net.fignum_biases, 'Biases at E#%i' % epochnum)
                 if net.fignum_dbiases: net.plot_biases(net.d_a, net.d_b, net.fignum_dbiases, 'D biases at E#%i' % epochnum)
     
-#     for patnum in range(npatterns)[:10]:
-#         pattern = test_pset.get(patnum).reshape(1, net.n_v)
-#         error, v_minus = net.test_trial(pattern)
-#         print 'End of training (E#%i), error = %.2f' % (n_train_epochs, error)
-#         test_pset.imshow(v_minus)
-    
-    # print '  '.join(['%.2f' % error for error in train_errors])
-    # plt.figure()
-    # net.plot_errors(train_errors)
     pause()
 

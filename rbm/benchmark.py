@@ -40,7 +40,7 @@ def sorted_attempts(attempts):
     return attempts
 
 def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, sampling_steps, n_temperatures, max_time_secs):
-    params = ['nhidden', 'lrate', 'wcost', 'momentum', 'n_in_train_minibatch', 'sampling_steps', 'n_temperatures']
+    params = ['nhidden', 'lrate', 'wcost', 'momentum', 'n_in_train_minibatch'] # add 'sampling_steps', 'n_temperatures'
     attempts = []
     for nh in nhidden: # [200, 400, 800]:
         for lr in lrate: # [0.005, 0.02]:
@@ -62,11 +62,13 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, sampling_s
         (nattempts, pid, dt_str(), max_time_secs, eta_str(total_time_secs))
     for attempt in attempts: print attempt
 
+    # Generate data set
     n_trainpatterns = 5000
-    train_pset, _, _ = create_mnist_patternsets(n_trainpatterns=n_trainpatterns)
-    # xxx - this isn't a proper test since we're using the training data, rather than withheld...
-    n_in_test_minibatch = 1000
-    test_minibatch = Minibatch(train_pset, n_in_test_minibatch)
+    n_validpatterns = 1000
+    train_pset, valid_pset, test_pset = create_mnist_patternsets(n_trainpatterns=n_trainpatterns, n_validpatterns=n_validpatterns)
+    n_trainpatterns, n_validpatterns, n_testpatterns = train_pset.n, valid_pset.n, test_pset.n
+    valid_patterns = np.array(valid_pset.patterns).reshape((n_validpatterns,-1))
+    test_patterns = np.array(test_pset.patterns).reshape((n_testpatterns, -1))
 
     all_t = Stopwatch()
     for attempt_idx, attempt in enumerate(attempts):
@@ -78,16 +80,28 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, sampling_s
                          attempt['wcost'],
                          attempt['momentum'],
                          v_shape=train_pset.shape,
-                         plot=False)
+                         plot=True)
+        train_errors = []
+        valid_errors = []
+        test_errors = []
         epochnum = 0
-        while True:
-            train_minibatch = Minibatch(train_pset, nitm)
-            net.learn_trial(train_minibatch.patterns)
+        while True: # train as long as time limit is not exceeded
+            minibatch_pset = Minibatch(train_pset, nitm)
+            net.learn_trial(minibatch_pset.patterns)
+
+            # calculate errors
+            train_error = np.mean(net.test_trial(minibatch_pset.patterns)[0])
+            train_errors.append(train_error)
+            valid_error = np.mean(net.test_trial(valid_patterns)[0])
+            valid_errors.append(valid_error)
+            test_error = np.mean(net.test_trial(test_patterns)[0])
+            test_errors.append(test_error)
+
             if t.finish(milli=False) > max_time_secs: break
             epochnum += 1
+
         train_elapsed = t.finish(milli=False)
-        test_errors, _ = net.test_trial(test_minibatch.patterns)
-        test_error = np.mean(test_errors)
+
         # add ATTEMPT keys that will vary each time below
         # this line. the HASH should be the same for this
         # set of parameters every time you run the benchmark
@@ -97,29 +111,29 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, sampling_s
         attempt['n_train_epochs'] = epochnum
         attempt['train_elapsed'] = train_elapsed
         attempt['dt'] = dt_str()
-        attempt['test_error'] = test_error
+        attempt['test_error'] = train_errors[-1] # error from last iteration
         attempt['npatterns'] = n_trainpatterns
+
+        filename = 'error%i.png' % attempt_idx
+        net.save_error_plots(train_errors, valid_errors, test_errors, filename)
 
         print 'Finished %i of %i: error %.2f in %.1f secs' % (attempt_idx+1, nattempts, test_error, train_elapsed)
         print attempt
         print '--------------------'
         print
     
-
     print_best(attempts, params)
-    # if all_t.finish(milli=False) > 1000: pause()
-
     
 if __name__ == "__main__":
     # Parameters for testing
-    nhidden = [100, 200]
-    lrate = [0.0002, 0.001]
+    nhidden = [100]
+    lrate = [0.001, 0.0001]
     wcost = [0.0002]
     momentum = [0.9]
     n_in_train_minibatch = [10]
     sampling_steps = [] # CD-k
     n_temperatures = [] # For single tempering, insert 1
-    max_time_secs = 5
+    max_time_secs = 300
 
     gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, \
                                 sampling_steps, n_temperatures, max_time_secs)
