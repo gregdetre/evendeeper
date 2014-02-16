@@ -27,7 +27,7 @@ from utils.stopwatch import Stopwatch
 
 
 class RbmNetwork(Network):
-    def __init__(self, n_v, n_h, lrate, wcost, momentum, n_temperatures=None, v_shape=None, plot=True):
+    def __init__(self, n_v, n_h, lrate, wcost, momentum, n_temperatures=None, n_sampling_steps=None, v_shape=None, plot=True):
         self.n_v, self.n_h = n_v, n_h
         self.lrate = lrate
         self.w = self.init_weights(n_v, n_h)
@@ -39,11 +39,14 @@ class RbmNetwork(Network):
         self.v_shape = v_shape or (1,n_v)
         self.wcost = wcost
         self.momentum = momentum
+
         # number of parallel tempering chains
         self.n_temperatures = n_temperatures if isfunction(n_temperatures) else lambda net: None
-        
         if self.n_temperatures(self) is None: print 'Using single tempering'
         else: print 'Using parallel tempering with %d chains' % self.n_temperatures(self)
+
+        self.n_sampling_steps = n_sampling_steps \
+                           if isfunction(n_sampling_steps) else lambda net: 1
 
         self.trial_num = 0
         self.plot = plot
@@ -109,7 +112,12 @@ class RbmNetwork(Network):
     def calculate_error(self, actual, desired):
         return sumsq(actual - desired)
 
-    def k_gibbs_steps(self, v_plus, w=None, a=None, b=None, k=1):
+    def k_gibbs_steps(self, v_plus, w=None, a=None, b=None):
+        
+        k = self.n_sampling_steps(self)
+
+        pause()
+
         assert(k>0) # do at least one step
         for t in range(k):
             # forward propagation
@@ -132,7 +140,7 @@ class RbmNetwork(Network):
         n_in_minibatch = float(v_plus.shape[0])
         h_plus_inp, h_plus_prob, h_plus_state, \
             v_minus_inp, v_minus_prob, v_minus_state, \
-            h_minus_inp, h_minus_prob, h_minus_state = self.k_gibbs_steps(v_plus, k=1)
+            h_minus_inp, h_minus_prob, h_minus_state = self.k_gibbs_steps(v_plus)
         diff_plus_minus = np.dot(v_plus.T, h_plus_prob) - np.dot(v_minus_prob.T, h_minus_prob)
         d_w = diff_plus_minus
         d_a = np.mean(v_plus-v_minus_prob, axis=0)
@@ -155,7 +163,7 @@ class RbmNetwork(Network):
            # perform CDk
            _, h_plus_act, _, \
                _, v_minus_act, v_minus_state, \
-               _, h_minus_act, _ = self.k_gibbs_steps(v_plus, self.w*invT[m], self.a*invT[m], self.b*invT[m], 1)
+               _, h_minus_act, _ = self.k_gibbs_steps(v_plus, self.w*invT[m], self.a*invT[m], self.b*invT[m])
            h_plus_acts[m] = h_plus_act
            v_minus_acts[m] = v_minus_act
            v_minus_states[m] = v_minus_state
@@ -202,7 +210,7 @@ class RbmNetwork(Network):
         h_bias = vec_to_arr(self.b)
         h_plus_inp, h_plus_prob, h_plus_state, \
             v_minus_inp, v_minus_prob, v_minus_state, \
-            h_minus_inp, h_minus_prob, h_minus_state = self.k_gibbs_steps(v_plus, k=1)
+            h_minus_inp, h_minus_prob, h_minus_state = self.k_gibbs_steps(v_plus)
         lmin, lmax = None, None
 
         v_plus = v_plus.reshape(self.v_shape)
@@ -303,28 +311,31 @@ if __name__ == "__main__":
     n_in_minibatch = 5
     momentum = 0.9
     #n_temperatures = 10
+
     def n_temperatures(net):
         """
         Return None for single tempering
         """
-        # M = sqrt(net.trial_num/100)
         #M = net.trial_num / 500
         return 10# None #M if M > 1 else None
+
+    def n_sampling_steps(net):
+        """
+        Returns the number of sampling steps used in CD-k
+        """
+        return 1
+
     plot = True
     plot_every_n = 100
     should_plot = lambda n: not n % plot_every_n # e.g. 0, 100, 200, 300, 400, ...
-    # plot_every_logn = 10
-    # should_plot = lambda n: log(n,plot_every_logn).is_integer() # e.g. 10th, 100th, 1000th, 10000th, ...
     print_every_n = 100
     should_print = lambda n: not n % print_every_n # e.g. 0, 100, 200, 300, 400, ...
 
-    # pset = create_random_patternset(npatterns=npatterns)
     train_pset, valid_pset, test_pset = create_mnist_patternsets(n_trainpatterns=n_trainpatterns, n_validpatterns=n_validpatterns)
     n_trainpatterns, n_validpatterns, n_testpatterns = train_pset.n, valid_pset.n, test_pset.n
 
     net_t = Stopwatch()
-    net = RbmNetwork(np.prod(train_pset.shape), nhidden, lrate, wcost, momentum, n_temperatures, v_shape=train_pset.shape, plot=plot)
-    # pset = create_random_patternset()
+    net = RbmNetwork(np.prod(train_pset.shape), nhidden, lrate, wcost, momentum, n_temperatures, n_sampling_steps, v_shape=train_pset.shape, plot=plot)
     print 'Init net in %.1fs' % net_t.finish(milli=False), net
     print 'train:', train_pset, '\tvalid:', valid_pset, '\ttest:', test_pset
 
