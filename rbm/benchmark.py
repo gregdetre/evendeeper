@@ -3,8 +3,8 @@ from ipdb import set_trace as pause
 import numpy as np
 import os
 
-from base import Minibatch, Patternset
-from rbm import create_mnist_patternset, RbmNetwork
+from base import Minibatch, Patternset, create_mnist_patternsets
+from rbm import RbmNetwork
 from utils.dt import dt_str, eta_str
 from utils.stopwatch import Stopwatch
 from utils.utils import HashableDict
@@ -62,26 +62,26 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, max_time_s
         (nattempts, pid, dt_str(), max_time_secs, eta_str(total_time_secs))
     for attempt in attempts: print attempt
 
-    npatterns = None
-    pset = create_mnist_patternset(npatterns=npatterns)
+    n_trainpatterns = 5000
+    train_pset, _, _ = create_mnist_patternsets(n_trainpatterns=n_trainpatterns)
     # xxx - this isn't a proper test since we're using the training data, rather than withheld...
     n_in_test_minibatch = 1000
-    test_minibatch = Minibatch(pset, n_in_test_minibatch)
+    test_minibatch = Minibatch(train_pset, n_in_test_minibatch)
 
     all_t = Stopwatch()
     for attempt_idx, attempt in enumerate(attempts):
         np.random.seed(1)
         t = Stopwatch()
-        net = RbmNetwork(np.prod(pset.shape),
+        net = RbmNetwork(np.prod(train_pset.shape),
                          attempt['nhidden'],
                          attempt['lrate'],
                          attempt['wcost'],
                          attempt['momentum'],
-                         v_shape=pset.shape,
+                         v_shape=train_pset.shape,
                          plot=False)
         epochnum = 0
         while True:
-            train_minibatch = Minibatch(pset, nitm)
+            train_minibatch = Minibatch(train_pset, nitm)
             net.learn_trial(train_minibatch.patterns)
             if t.finish(milli=False) > max_time_secs: break
             epochnum += 1
@@ -98,7 +98,7 @@ def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, max_time_s
         attempt['train_elapsed'] = train_elapsed
         attempt['dt'] = dt_str()
         attempt['test_error'] = test_error
-        attempt['npatterns'] = npatterns
+        attempt['npatterns'] = n_trainpatterns
 
         print 'Finished %i of %i: error %.2f in %.1f secs' % (attempt_idx+1, nattempts, test_error, train_elapsed)
         print attempt
@@ -117,7 +117,7 @@ if __name__ == "__main__":
     parser.add_argument('--wcost', type=float, default=[], action='append', help='Weight cost')
     parser.add_argument('--momentum', type=float, default=[], action='append', help='Momentum')
     parser.add_argument('--n_in_train_minibatch', type=int, default=[], action='append', help='Minibatch size (during training)')
-    parser.add_argument('-s', '--max_time_secs', type=int, default=100, help='How much time to run each attempt for')
+    parser.add_argument('-s', '--max_time_secs', type=int, default=5, help='How much time to run each attempt for')
 #     parser.add_argument('--shouldplot', type=int, default=0, help='How often to plot graphs - default is 0, i.e. never')
     kwargs = vars(parser.parse_args())
     # i haven't figured out a better way to include defaults
