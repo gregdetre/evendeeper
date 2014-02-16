@@ -27,7 +27,7 @@ from utils.stopwatch import Stopwatch
 
 
 class RbmNetwork(Network):
-    def __init__(self, n_v, n_h, lrate, wcost, momentum, n_temperatures=None, n_sampling_steps=None, v_shape=None, plot=True):
+    def __init__(self, n_v, n_h, lrate, wcost, momentum, n_temperatures=1, n_sampling_steps=1, v_shape=None, plot=True):
         self.n_v, self.n_h = n_v, n_h
         self.lrate = lrate
         self.w = self.init_weights(n_v, n_h)
@@ -41,12 +41,14 @@ class RbmNetwork(Network):
         self.momentum = momentum
 
         # number of parallel tempering chains
-        self.n_temperatures = n_temperatures if isfunction(n_temperatures) else lambda net: None
-        if self.n_temperatures(self) is None: print 'Using single tempering'
+        self.n_temperatures = n_temperatures if isfunction(n_temperatures) else lambda net: n_temperatures
+        if self.n_temperatures(self) == 1: print 'Using single tempering'
         else: print 'Using parallel tempering with %d chains' % self.n_temperatures(self)
 
+        # number of sampling steps in CD-k
         self.n_sampling_steps = n_sampling_steps \
-                           if isfunction(n_sampling_steps) else lambda net: 1
+                           if isfunction(n_sampling_steps) \
+                           else lambda net: n_sampling_steps
 
         self.trial_num = 0
         self.plot = plot
@@ -95,7 +97,8 @@ class RbmNetwork(Network):
         lrate_over_n_mb = self.lrate/float(n_mb)
 
         M = self.n_temperatures(self)
-        if M is None:
+        assert(M>0)
+        if M == 1:
             d_w, d_a, d_b = self.update_weights(v_plus) # use single tempering
         else:
             d_w, d_a, d_b = self.update_weights_pt(v_plus, M) # use parallel tempering
@@ -112,13 +115,10 @@ class RbmNetwork(Network):
     def calculate_error(self, actual, desired):
         return sumsq(actual - desired)
 
-    def k_gibbs_steps(self, v_plus, w=None, a=None, b=None):
-        
+    def k_gibbs_steps(self, v_plus, w=None, a=None, b=None):        
         k = self.n_sampling_steps(self)
-
-        pause()
-
         assert(k>0) # do at least one step
+
         for t in range(k):
             # forward propagation
             h_plus_inp, h_plus_prob = self.propagate_fwd(v_plus, w, a, b) 
@@ -148,7 +148,6 @@ class RbmNetwork(Network):
         return d_w, d_a, d_b
 
     def update_weights_pt(self, v_plus, M):
-        # M == n_temperatures
         n_mb = v_plus.shape[0]
 
         T = np.arange(1, M+1)
@@ -310,18 +309,18 @@ if __name__ == "__main__":
     n_train_epochs = 100000
     n_in_minibatch = 5
     momentum = 0.9
-    #n_temperatures = 10
-
+    #n_temperatures = 1
     def n_temperatures(net):
         """
-        Return None for single tempering
+        Returns integer; 1 for single tempering
         """
         #M = net.trial_num / 500
-        return 10# None #M if M > 1 else None
+        return 1# None #M if M > 1 else None
 
+    #n_sampling_steps = 1
     def n_sampling_steps(net):
         """
-        Returns the number of sampling steps used in CD-k
+        Returns integer; number of sampling steps used in CD-k
         """
         return 1
 
