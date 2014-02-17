@@ -29,7 +29,7 @@ def sorted_attempts(attempts):
 
 def gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, \
                      sampling_steps, n_temperatures, max_time_secs, save_plots):
-    params = ['nhidden', 'lrate', 'wcost', 'momentum', 'n_in_train_minibatch', 'sampling_steps', 'n_temperatures']
+    params = ['nhidden', 'lrate', 'wcost', 'momentum', 'n_in_train_minibatch', 'n_sampling_steps', 'n_temperatures']
     attempts = []
     for nh in nhidden: # [200, 400, 800]:
         for lr in lrate: # [0.005, 0.02]:
