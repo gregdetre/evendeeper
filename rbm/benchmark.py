@@ -9,25 +9,13 @@ from utils.dt import dt_str, eta_str
 from utils.stopwatch import Stopwatch
 from utils.utils import HashableDict
 
-"""
-USAGE: e.g.
-
-  python benchmark.py -h
-
-  python benchmark.py -s 3 --lrate 0.001 --lrate 0.01 --momentum 0.1 --momentum 0.2 --nhidden 1000
-  ->
-    {'nhidden': 1000, 'wcost': 0.0002, 'momentum': 0.1, 'lrate': 0.001}
-    {'nhidden': 1000, 'wcost': 0.0002, 'momentum': 0.2, 'lrate': 0.001}
-    {'nhidden': 1000, 'wcost': 0.0002, 'momentum': 0.1, 'lrate': 0.01}
-    {'nhidden': 1000, 'wcost': 0.0002, 'momentum': 0.2, 'lrate': 0.01}
-"""
-
 # TODO
 #
 # - test on withheld data
 # - write out to sqlite, pickle
 # - plot on graph
 # - run on c3.large
+# - parallelization
 
 def print_best(attempts, keys):
     attempts = sorted_attempts(attempts)
@@ -137,12 +125,12 @@ if __name__ == "__main__":
     # Parameters for testing
     nhidden = [100]
     lrate = [0.001, 0.001]
-    wcost = [0.0002]
-    momentum = [0.9]
+    wcost = [0.0002, 0.0]
+    momentum = [0.9, 0.0]
     n_in_train_minibatch = [10]
-    sampling_steps = [1] # CD-k
-    n_temperatures = [1] # For single tempering, insert 1
-    max_time_secs = 600
+    sampling_steps = [1, 3] # CD-k
+    n_temperatures = [1, 10] # For single tempering, insert 1
+    max_time_secs = 180
     save_plots = True
 
     gridsearch(nhidden, lrate, wcost, momentum, n_in_train_minibatch, \

@@ -53,8 +53,11 @@ def execute_parallel(args, nprocs):
 if __name__ == '__main__':
 
     # numpy import mess with core affinity on import (http://bugs.python.org/issue17038)
-    # reset task affinity
+    # reset task affinity otherwise code will only run on one core
     os.system("taskset -p 0xff %d" % os.getpid())
 
-    args = [np.random.randn(1000, 1000), np.random.randn(1000, 1000), np.random.randn(1000, 1000), np.random.randn(1000, 1000)]
-    execute_parallel(args, 2)
+    num_cores = 2
+    task_list = [np.random.randn(1000, 1000), np.random.randn(1000, 1000), np.random.randn(1000, 1000), np.random.randn(1000, 1000)]
+
+    execute_parallel(task_list, num_cores)
+
